@@ -140,9 +140,29 @@ export interface SearchResponse {
   results: StationResult[];
   /** Stazioni candidate valutate prima del limite di risposta. */
   candidatesEvaluated: number;
-  /** Data dell'ultima ingestione MIMIT riuscita (ISO 8601), sempre da mostrare in UI. */
+  /** Data dell'ultima ingestione del file MIMIT giornaliero (ISO 8601): è la base dei prezzi, indietro di 1-2 giorni. */
   pricesUpdatedAt: string | null;
+  /** Stato dell'aggiornamento in tempo reale dei prezzi lungo il percorso (sito ufficiale Osservaprezzi). */
+  livePrices: LivePricesInfo;
   refinement: RefinementInfo;
+}
+
+/**
+ * - `live`: tutti i riquadri del corridoio hanno prezzi aggiornati in tempo reale;
+ * - `partial`: solo una parte (tempo o limite di chiamate esauriti): il resto usa il file giornaliero;
+ * - `unavailable`: la fonte in tempo reale non ha risposto, si usano solo i prezzi del file giornaliero;
+ * - `disabled`: aggiornamento in tempo reale non attivo (configurazione).
+ */
+export type LivePricesStatus = "live" | "partial" | "unavailable" | "disabled";
+
+export interface LivePricesInfo {
+  status: LivePricesStatus;
+  /** Riquadri geografici che coprono il corridoio. */
+  tilesTotal: number;
+  /** Riquadri con prezzi live (appena scaricati o in cache recente). */
+  tilesLive: number;
+  /** Età in minuti del riquadro live meno recente tra quelli usati, null se nessuno. */
+  oldestLiveAgeMinutes: number | null;
 }
 
 /** Risposta di GET /search/:id — risultati riordinati dopo il ricalcolo con routing reale. */

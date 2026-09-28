@@ -51,4 +51,17 @@ describe("parsePrezziCsv", () => {
     expect(prices.some((p) => p.stationId === 8888)).toBe(false);
     expect(warnings.some((w) => w.reason.includes("fuori range plausibile"))).toBe(true);
   });
+
+  it("scarta il segnaposto 1.000 di 'Blue Super' (caso reale, stazione 3473) ma tiene GPL a 0.863", () => {
+    const csv = [
+      "Estrazione del 2026-09-27",
+      "idImpianto|descCarburante|prezzo|isSelf|dtComu",
+      "3473|Benzina|2.199|1|26/09/2026 14:50:07",
+      "3473|Blue Super|1.000|1|24/09/2026 21:52:18",
+      "3473|GPL|0.863|0|24/09/2026 21:52:18",
+    ].join("\n");
+    const { prices, warnings } = parsePrezziCsv(csv);
+    expect(prices.map((p) => p.rawDescCarburante)).toEqual(["Benzina", "GPL"]);
+    expect(warnings.some((w) => w.reason.includes("fuori range plausibile"))).toBe(true);
+  });
 });
