@@ -1,4 +1,4 @@
-import type { ReferencePriceLevel, RefinementInfo } from "@routefuel/shared";
+import type { LivePricesInfo, ReferencePriceLevel, RefinementInfo } from "@routefuel/shared";
 import type { SearchState } from "../hooks/useSearch";
 import { formatDateTime, formatDuration, formatKm, formatPrice } from "../lib/format";
 import { CheckIcon, InfoIcon, SpinnerIcon } from "./icons";
@@ -17,6 +17,33 @@ const REFERENCE_LEVEL_TEXT: Record<ReferencePriceLevel, (n: number) => string> =
   corridor: (n) => `mediana di ${n} stazioni nel corridoio`,
   national: () => "mediana nazionale (poche stazioni sul tratto)",
 };
+
+/** Dichiara da dove vengono i prezzi: tempo reale (sito ufficiale) o file giornaliero MIMIT (indietro di 1-2 giorni). */
+function PricesFreshnessNotice({ livePrices, dailyFileAt }: { livePrices: LivePricesInfo; dailyFileAt: string | null }) {
+  const daily = dailyFileAt ? `file giornaliero MIMIT del ${formatDateTime(dailyFileAt)} (prezzi in vigore alle 8:00 del giorno prima)` : "file giornaliero MIMIT";
+  let text: string;
+  let live = false;
+  switch (livePrices.status) {
+    case "live":
+      live = true;
+      text = `Prezzi in tempo reale dal sito ufficiale Osservaprezzi${livePrices.oldestLiveAgeMinutes ? ` · aggiornati ${livePrices.oldestLiveAgeMinutes} min fa` : ""}`;
+      break;
+    case "partial":
+      text = `Prezzi in tempo reale su ${livePrices.tilesLive} zone del percorso su ${livePrices.tilesTotal}; per il resto ${daily}`;
+      break;
+    case "unavailable":
+      text = `Prezzi in tempo reale non raggiungibili al momento: uso il ${daily}`;
+      break;
+    default:
+      text = `Prezzi dal ${daily}`;
+  }
+  return (
+    <p role="status" className="flex items-center gap-space-sm text-body-sm font-body-sm text-on-surface-variant">
+      {live ? <CheckIcon className="w-4 h-4 text-primary shrink-0" /> : <InfoIcon className="w-4 h-4 text-outline shrink-0" />}
+      <span>{text}</span>
+    </p>
+  );
+}
 
 function RefinementNotice({ refinement }: { refinement: RefinementInfo }) {
   if (refinement.status === "pending") {
@@ -81,9 +108,7 @@ export function ResultsPanel({ state }: { state: SearchState }) {
           Prezzo di riferimento €{formatPrice(response.referencePrice.value)}/L (
           {REFERENCE_LEVEL_TEXT[response.referencePrice.level](response.referencePrice.sampleSize)})
         </p>
-        <p className="text-body-sm font-body-sm text-on-surface-variant">
-          Prezzi MIMIT aggiornati al {response.pricesUpdatedAt ? formatDateTime(response.pricesUpdatedAt) : "— (nessuna ingestione registrata)"}
-        </p>
+        <PricesFreshnessNotice livePrices={response.livePrices} dailyFileAt={response.pricesUpdatedAt} />
         <RefinementNotice refinement={refinement} />
       </div>
 
