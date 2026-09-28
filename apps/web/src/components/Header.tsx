@@ -7,7 +7,7 @@ import { RouteFuelLogo } from "./RouteFuelLogo";
  */
 export function Header() {
   return (
-    <header className="fixed top-0 w-full z-30 pt-safe bg-transparent">
+    <header className="fixed top-0 w-full z-30 pt-safe bg-surface/85 backdrop-blur-xl">
       <div className="h-[72px] px-gutter flex items-center justify-between relative max-w-md mx-auto">
         <div className="w-10 h-10" />
 
