@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: routefuel
       POSTGRES_DB: routefuel
     ports:
-      - "5432:5432"
+      # 5433 sull'host per non collidere con un eventuale PostgreSQL nativo già in ascolto sulla 5432
+      - "5433:5432"
     volumes:
       - routefuel-db-data:/var/lib/postgresql/data
     healthcheck:

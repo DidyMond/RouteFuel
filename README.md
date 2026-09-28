@@ -87,6 +87,12 @@ assets/    Logo ufficiale
    - API su http://localhost:3001 (`GET /health` per verificare stato server + DB)
    - Frontend su http://localhost:5173
 
+## Risoluzione problemi
+
+- **`autenticazione con password fallita per l'utente "routefuel"`**: sulla porta 5432 dell'host c'è probabilmente un PostgreSQL nativo già installato (servizio Windows `postgresql-x64-XX`). Per questo il container Docker espone Postgres sulla **5433** (vedi `docker-compose.yml` e `DATABASE_URL` in `.env.example`). Se hai copiato `.env` prima di questa modifica, assicurati che `DATABASE_URL` in `.env` e in `apps/api/.env` usi la porta 5433.
+- **`docker` non riconosciuto nel terminale**: dopo l'installazione di Docker Desktop chiudi *tutte* le finestre di VS Code (e l'app da cui l'hai avviato) e riaprile, così ereditano il PATH aggiornato.
+- **Docker Desktop su Windows non parte**: servono BIOS con virtualizzazione attiva e le funzionalità Windows "Sottosistema Windows per Linux" e "Piattaforma macchina virtuale" (poi riavvio). Se compare `wsl-keepalive failed to start`, vedi i log in `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`.
+
 ## Comandi utili
 
 | Comando | Effetto |
