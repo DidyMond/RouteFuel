@@ -1,6 +1,7 @@
 import { type Migration, type MigrationProvider, Migrator } from "kysely";
 import { db } from "./index";
 import * as m0001Init from "./migrations/0001_init";
+import * as m0002ApiUsage from "./migrations/0002_api_usage";
 
 /**
  * Provider con import statici invece di FileMigrationProvider: quest'ultimo
@@ -12,6 +13,7 @@ const migrationProvider: MigrationProvider = {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
       "0001_init": m0001Init,
+      "0002_api_usage": m0002ApiUsage,
     };
   },
 };

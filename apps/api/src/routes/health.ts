@@ -1,10 +1,9 @@
-import type { FastifyInstance } from "fastify";
 import type { HealthStatus } from "@routefuel/shared";
-import { checkDatabaseConnection } from "../db";
+import type { FastifyInstance } from "fastify";
 
-export function registerHealthRoutes(app: FastifyInstance): void {
+export function registerHealthRoutes(app: FastifyInstance, checkDatabase: () => Promise<boolean>): void {
   app.get("/health", async (_request, reply) => {
-    const databaseOk = await checkDatabaseConnection();
+    const databaseOk = await checkDatabase();
 
     const body: HealthStatus = {
       status: databaseOk ? "ok" : "degraded",
