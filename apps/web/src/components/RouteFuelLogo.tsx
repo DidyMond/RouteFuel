@@ -1,0 +1,33 @@
+/** Mark ufficiale (vedi ../../../../assets/logo.svg), inline per riuso del gradiente in Tailwind. */
+export function RouteFuelLogo({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="rf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#0284C7" />
+          <stop offset="100%" stopColor="#10B981" />
+        </linearGradient>
+      </defs>
+      <rect width="200" height="200" rx="44" fill="url(#rf-grad)" />
+      <path
+        d="M60 145 C60 120, 80 110, 100 110 C120 110, 140 100, 140 70"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth="12"
+        strokeLinecap="round"
+        strokeDasharray="2 16"
+      />
+      <circle cx="60" cy="145" r="9" fill="#FFFFFF" />
+      <path d="M125 55 L145 70 L125 85 Z" fill="#FFFFFF" />
+      <circle cx="100" cy="100" r="26" fill="#0F172A" />
+      <path
+        d="M96 90 L102 90 C106 90, 108 92, 108 96 C108 99, 106 101, 102 101 L96 101 Z M96 104 L102 104 L107 111 M96 86 L96 114"
+        fill="none"
+        stroke="#10B981"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+}
+
+@layer utilities {
+  /* Safe-area (notch) per header/bottom-nav fissi, vedi DESIGN.md §Header/Bottom Navigation. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
