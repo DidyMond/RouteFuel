@@ -2,6 +2,7 @@ import { type Migration, type MigrationProvider, Migrator } from "kysely";
 import { db } from "./index";
 import * as m0001Init from "./migrations/0001_init";
 import * as m0002ApiUsage from "./migrations/0002_api_usage";
+import * as m0003LivePriceTiles from "./migrations/0003_live_price_tiles";
 
 /**
  * Provider con import statici invece di FileMigrationProvider: quest'ultimo
@@ -14,6 +15,7 @@ const migrationProvider: MigrationProvider = {
     return {
       "0001_init": m0001Init,
       "0002_api_usage": m0002ApiUsage,
+      "0003_live_price_tiles": m0003LivePriceTiles,
     };
   },
 };

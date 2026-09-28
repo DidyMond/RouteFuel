@@ -32,6 +32,18 @@ export class ProviderError extends AppError {
   }
 }
 
+/** Il servizio esterno ci sta limitando (HTTP 429): occorre rallentare, non riprovare subito. */
+export class RateLimitedProviderError extends ProviderError {
+  constructor(
+    message: string,
+    /** Attesa richiesta dal servizio (header Retry-After), se indicata. */
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = "RateLimitedProviderError";
+  }
+}
+
 export class BudgetExhaustedError extends AppError {
   constructor() {
     super(

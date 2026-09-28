@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  type Coordinate,
   computeNetSavings,
   computeReferencePrice,
   computeRoutedDetour,
@@ -20,6 +21,7 @@ import type {
   SearchRefinementResponse,
   SearchRequest,
   SearchResponse,
+  LivePricesInfo,
   StationResult,
   StationSummary,
 } from "@routefuel/shared";
@@ -37,8 +39,16 @@ export const RESULT_LIMIT = 50;
 /** Quante stazioni in testa alla classifica proxy vengono verificate con il routing reale. */
 export const REFINE_TOP_N = 5;
 
+/** Porta i prezzi del corridoio in tempo reale prima della lettura dal DB. Opzionale: senza, restano i prezzi del file giornaliero. */
+export interface LivePricesGate {
+  ensureFresh(route: readonly Coordinate[], bufferKm: number): Promise<LivePricesInfo>;
+}
+
+const LIVE_PRICES_DISABLED: LivePricesInfo = { status: "disabled", tilesTotal: 0, tilesLive: 0, oldestLiveAgeMinutes: null };
+
 export interface SearchServiceDeps {
   routing: RoutingProvider;
+  livePrices?: LivePricesGate;
   repository: StationRepository;
   budget: BudgetGate;
   sessions: SearchSessionStore;
@@ -79,6 +89,9 @@ export class SearchService {
 
     const simplified = simplifyRoute(route.geometry);
     const radiusKm = clamp(request.maxDetourKm, MIN_CORRIDOR_RADIUS_KM, MAX_CORRIDOR_RADIUS_KM);
+
+    // Prima dei dati: aggiorna in tempo reale i riquadri del corridoio (non fallisce mai, degrada al file giornaliero).
+    const livePrices = this.deps.livePrices ? await this.deps.livePrices.ensureFresh(simplified, radiusKm) : LIVE_PRICES_DISABLED;
 
     const [rows, national, lastIngestionAt] = await Promise.all([
       this.deps.repository.findCorridorPrices({
@@ -154,6 +167,7 @@ export class SearchService {
       results: results.map(present),
       candidatesEvaluated: candidates.length,
       pricesUpdatedAt: lastIngestionAt ? lastIngestionAt.toISOString() : null,
+      livePrices,
       refinement: session.refinement,
     };
   }

@@ -469,3 +469,56 @@ describe("SearchSessionStore", () => {
     expect(store.get("c")).toBeDefined();
   });
 });
+
+describe("SearchService — prezzi in tempo reale", () => {
+  const liveInfo = { status: "live", tilesTotal: 6, tilesLive: 6, oldestLiveAgeMinutes: 4 } as const;
+
+  it("senza fonte live la risposta dichiara 'disabled' e la ricerca funziona con i prezzi del file", async () => {
+    const { service } = buildService();
+    const response = await service.search(request);
+    expect(response.livePrices).toEqual({ status: "disabled", tilesTotal: 0, tilesLive: 0, oldestLiveAgeMinutes: null });
+    expect(response.results.length).toBeGreaterThan(0);
+  });
+
+  it("aggiorna i prezzi PRIMA di leggere il corridoio e passa tracciato e raggio corretti", async () => {
+    const rows = onRoute();
+    const repository = new InMemoryStationRepository(rows);
+    const calls: Array<{ points: number; bufferKm: number }> = [];
+    const service = new SearchService({
+      routing: new MockRoutingProvider(),
+      repository,
+      budget: { status: async () => "ok" },
+      sessions: new SearchSessionStore(),
+      livePrices: {
+        async ensureFresh(route, bufferKm) {
+          calls.push({ points: route.length, bufferKm });
+          // Simula il refresh: una stazione ribassa il prezzo. La ricerca deve vederlo.
+          rows[0] = { ...rows[0]!, price: 1.5 };
+          return liveInfo;
+        },
+      },
+    });
+
+    const response = await service.search({ ...request, maxDetourKm: 4 });
+
+    expect(calls).toEqual([{ points: 2, bufferKm: 4 }]);
+    expect(response.livePrices).toEqual(liveInfo);
+    const cheapest = response.results.find((r) => r.station.id === rows[0]!.stationId);
+    expect(cheapest?.price).toBe(1.5);
+  });
+
+  it("propaga lo stato 'partial'/'unavailable' senza far fallire la ricerca", async () => {
+    for (const status of ["partial", "unavailable"] as const) {
+      const service = new SearchService({
+        routing: new MockRoutingProvider(),
+        repository: new InMemoryStationRepository(onRoute()),
+        budget: { status: async () => "ok" },
+        sessions: new SearchSessionStore(),
+        livePrices: { ensureFresh: async () => ({ status, tilesTotal: 6, tilesLive: status === "partial" ? 2 : 0, oldestLiveAgeMinutes: null }) },
+      });
+      const response = await service.search(request);
+      expect(response.livePrices.status).toBe(status);
+      expect(response.results.length).toBeGreaterThan(0);
+    }
+  });
+});

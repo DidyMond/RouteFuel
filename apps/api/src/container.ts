@@ -4,6 +4,9 @@ import { runIngestion } from "./ingestion/runIngestion";
 import type { GeocodingProvider } from "./providers/geocoding/GeocodingProvider";
 import { FixtureGeocodingProvider } from "./providers/geocoding/FixtureGeocodingProvider";
 import { MapboxGeocodingProvider } from "./providers/geocoding/MapboxGeocodingProvider";
+import { LivePriceRefresher } from "./live-prices/LivePriceRefresher";
+import { PostgresLivePriceStore } from "./live-prices/PostgresLivePriceStore";
+import { OspzLivePriceProvider } from "./providers/live-prices/OspzLivePriceProvider";
 import { MimitFuelDataProvider } from "./providers/fuel-data/MimitFuelDataProvider";
 import { BudgetedRoutingProvider } from "./providers/routing/BudgetedRoutingProvider";
 import { CachedRoutingProvider } from "./providers/routing/CachedRoutingProvider";
@@ -54,8 +57,22 @@ export function createRuntime() {
     budget = { status: async () => "ok" };
   }
 
+  const livePrices =
+    env.LIVE_PRICES_PROVIDER === "ospz"
+      ? new LivePriceRefresher({
+          provider: new OspzLivePriceProvider({ baseUrl: env.LIVE_PRICES_BASE_URL, userAgent: env.LIVE_PRICES_USER_AGENT }),
+          store: new PostgresLivePriceStore(db),
+          ttlMs: env.LIVE_PRICES_TTL_MIN * 60_000,
+          maxTilesPerSearch: env.LIVE_PRICES_MAX_TILES_PER_SEARCH,
+          deadlineMs: env.LIVE_PRICES_DEADLINE_MS,
+          concurrency: env.LIVE_PRICES_CONCURRENCY,
+          logger: console,
+        })
+      : undefined;
+
   const searchService = new SearchService({
     routing,
+    livePrices,
     repository: new PostgisStationRepository(db),
     budget,
     sessions: new SearchSessionStore(),
@@ -64,7 +81,7 @@ export function createRuntime() {
   return {
     geocoding,
     searchService,
-    providers: { geocoding: geocodingKind, routing: routingKind },
+    providers: { geocoding: geocodingKind, routing: routingKind, livePrices: env.LIVE_PRICES_PROVIDER },
     checkDatabase: checkDatabaseConnection,
     runIngestion: () => runIngestion(new MimitFuelDataProvider()),
   };

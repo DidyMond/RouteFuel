@@ -46,9 +46,16 @@ export interface ApiUsageTable {
   updated_at: Generated<Date>;
 }
 
+export interface LivePriceTilesTable {
+  tile_id: string;
+  refreshed_at: Generated<Date>;
+  stations_seen: Generated<number>;
+}
+
 export interface Database {
   stations: StationsTable;
   fuel_prices: FuelPricesTable;
   ingestion_runs: IngestionRunsTable;
   api_usage: ApiUsageTable;
+  live_price_tiles: LivePriceTilesTable;
 }
