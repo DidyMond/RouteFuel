@@ -4,7 +4,7 @@ Webapp (PWA) che trova il distributore di carburante più conveniente **lungo** 
 
 Documentazione di prodotto e architettura: [`docs/PRD.md`](docs/PRD.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/STACK_DECISION.md`](docs/STACK_DECISION.md), [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). Design system: [`DESIGN.md`](DESIGN.md).
 
-Stato attuale: **Milestone 1 — Ricerca A→B e calcolo core** (branch `feat/milestone-1-search`, in revisione). Ricerca reale con autocomplete degli indirizzi, ranking per risparmio netto e verifica della deviazione col routing reale; mappa e bottom sheet arriveranno in Milestone 2.
+Stato attuale: **Milestone 1 — Ricerca A→B e calcolo core** (branch `feat/milestone-1-search`, in revisione). Ricerca reale con autocomplete degli indirizzi, prezzi in tempo reale dal sito ufficiale Osservaprezzi, ranking per risparmio netto e verifica della deviazione col routing reale; mappa e bottom sheet arriveranno in Milestone 2.
 
 ## Struttura del repository
 
@@ -96,12 +96,20 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 
 **Senza chiavi Mapbox:** lasciando vuoto `MAPBOX_SERVER_TOKEN` il backend usa `FixtureGeocodingProvider` (una decina di luoghi noti: "milano centrale", "bologna", "roma termini"…) e `MockRoutingProvider` (percorsi rettilinei, non strade reali). La pipeline funziona identica, i valori di deviazione no.
 
+## Prezzi: da dove arrivano e quanto sono freschi
+
+- **Anagrafica** (indirizzi, gestore, tipo di impianto): file CSV MIMIT, caricato con `pnpm ingest`.
+- **Prezzi**: il CSV MIMIT è pubblicato ogni mattina ma contiene per costruzione lo stato *alle 8 del giorno precedente* (1–2 giorni di ritardo). Per questo, prima di ogni ricerca, l'API aggiorna in tempo reale i prezzi delle zone attraversate dal percorso interrogando il **sito ufficiale Osservaprezzi** (`carburanti.mise.gov.it`), a riquadri di ~14 km con cache di 60 minuti condivisa tra le ricerche.
+- La risposta di `POST /search` include `livePrices` (`live`, `partial`, `unavailable`, `disabled`) e la UI dichiara quale fonte sta usando. Se il sito ufficiale non risponde la ricerca funziona comunque con il CSV.
+- **Attenzione:** l'endpoint del sito non è un'API pubblica documentata e ha un limite di richieste (risponde `429`). Il client è volutamente prudente (3 chiamate in parallelo, tetto di 40 riquadri per ricerca, pausa automatica su 429). Non alzare i limiti senza motivo; vedi `docs/OPEN_QUESTIONS.md` (punto 7). `LIVE_PRICES_PROVIDER=off` in `apps/api/.env` la disattiva.
+- La prima ricerca in una zona nuova può richiedere alcuni secondi in più (fino a ~10 s su percorsi lunghi, con copertura parziale dichiarata); le successive nella stessa zona sono immediate.
+
 ## Test
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 100 test di `packages/core` + 132 test di `apps/api` (provider, ricerca, kill switch, rate limit, rotte HTTP) | niente: zero rete, zero database |
-| `pnpm test:db` | 13 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
+| `pnpm test` | 120 test di `packages/core` + 159 test di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) | niente: zero rete, zero database |
+| `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 
 ## Risoluzione problemi
@@ -111,6 +119,8 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 - **Docker Desktop su Windows non parte**: servono BIOS con virtualizzazione attiva e le funzionalità Windows "Sottosistema Windows per Linux" e "Piattaforma macchina virtuale" (poi riavvio). Se compare `wsl-keepalive failed to start`, vedi i log in `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`.
 - **Autocomplete con "Suggerimenti non disponibili"**: quasi sempre CORS (stai usando `127.0.0.1` invece di `localhost`) oppure l'API non è avviata.
 - **`429 RATE_LIMITED`**: hai superato 20 ricerche/minuto (o 120 richieste di geocoding/minuto) dallo stesso IP; i limiti si cambiano in `apps/api/.env`.
+- **Nei risultati compare «Prezzi in tempo reale non raggiungibili» o «su N zone su M»**: il sito ufficiale non ha risposto, ha risposto `429` (troppe richieste: l'API fa una pausa automatica di ~1 minuto) oppure il percorso è molto lungo (tetto di 40 riquadri per ricerca). Riprova dopo qualche minuto: i riquadri già scaricati restano in cache.
+- **Un prezzo sembra assurdo (es. 1,000 €/L)**: di solito è un segnaposto inserito dal gestore. Benzina e gasolio sotto 1,2 €/L vengono scartati e il prodotto base ha la precedenza sulle varianti premium; se ne trovi altri, segnalali.
 - **`503 BUDGET_EXHAUSTED`**: il contatore mensile delle chiamate Directions ha raggiunto `DIRECTIONS_HARD_LIMIT`. Il contatore è nella tabella `api_usage`.
 
 ## Comandi utili

@@ -38,18 +38,22 @@ Per rispettare la struttura richiesta (provider in `apps/api`) l'autocomplete pa
 ### 6. Posizione del toggle "Solo Self"
 Il PRD lo colloca tra le pill di Screen 2; in M1 non c'è ancora Screen 2 e la ricerca ne ha bisogno, quindi sta nel form della Home. Lo sposto in Screen 2 (come filtro che riesegue la ricerca) o lo lascio anche in Home?
 
-### 7. I prezzi MIMIT hanno per costruzione 1–2 giorni di ritardo
-Verificato il 28/09/2026: il file `prezzo_alle_8.csv` viene rigenerato ogni mattina (~07:09 UTC, `Last-Modified` del server), ma contiene lo stato **alle 08:00 del giorno precedente** (intestazione `Estrazione del 2026-09-27`, ultimo `dtComu` = 27/09 08:00). Lo conferma la pagina MIMIT: «vengono pubblicate le informazioni in vigore alle ore 8 del giorno precedente a quello di pubblicazione». Non è un file bloccato: il ritardo è strutturale, da ~24 h (subito dopo la pubblicazione) a ~48 h (poco prima della successiva). Alle 23:15 del 28/09 i dati avevano ~39 h.
+### 7. Fonte dei prezzi in tempo reale: non è un'API pubblica (**decisione tua**)
+Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigore alle ore 8 del giorno precedente»), quindi per avere prezzi aggiornati M1 interroga anche il **sito ufficiale** Osservaprezzi (`POST carburanti.mise.gov.it/ospzApi/search/zone`, lo stesso endpoint che alimenta la ricerca per zona del sito). Funziona, ma:
+- **non è documentata né garantita**: nessun SLA, nessuna licenza d'uso esplicita per applicazioni terze, il formato può cambiare senza preavviso (l'endpoint del 2019 nel repository `teamdigitale/api-openapi-samples` oggi risponde `302`);
+- **ha un limite di richieste**: ho ricevuto HTTP 429 dopo ~80 richieste in pochi minuti con 6 in parallelo (mie prove di carico). Il client ora usa concorrenza 3, cache per riquadro da 60 minuti, pausa su 429 e tetto di 40 riquadri per ricerca;
+- se il servizio è indisponibile la ricerca degrada al CSV e lo dichiara in UI.
 
-Conseguenze: un prezzo può essere cambiato nelle ultime 24–48 h; la soglia di freschezza (72 h dal `dtComu`) va letta sapendo questo. Opzioni:
-- **(a)** lasciare tutto com'è e **mostrare in UI la data dei dati** («Prezzi in vigore alle 8:00 del 27 set») e nel README che sono indicativi; salvare in DB la data di `Estrazione del` (oggi viene letta ma non conservata);
-- **(b)** come (a), ma calcolare l'età di un prezzo rispetto all'estrazione e non a «adesso»;
-- **(c)** cercare una fonte in tempo reale. L'API `OssPrezziSearch` del YAML di `teamdigitale/api-openapi-samples` è il backend del sito web, non un'API pubblica supportata: l'esempio è del 2019 e oggi `POST /ricerca/position` risponde `302 → /ospzSearch` (il sito è stato rifatto). Ha un endpoint per percorso, ma è interrogabile solo a richieste singole, senza contratto, licenza né SLA: sarebbe fragile e a rischio blocco/ToS. **Non la consiglio come fonte primaria.**
+**Raccomando** di scrivere a `osservaprezzi@mise.gov.it` (contatto indicato nella descrizione dell'API) per chiedere l'autorizzazione all'uso o un accesso ufficiale in blocco, **prima del lancio pubblico**. Per sviluppo locale e test non è bloccante. Decisioni per te: (a) confermi la fonte live con queste tutele; (b) vuoi che ti prepari una bozza della richiesta al ministero?
 
-**Raccomando (a)**, con (b) valutabile in M2. Il CSV resta la fonte ufficiale, stabile e con licenza aperta.
+### 8. Prezzi anomali residui
+Ho corretto i segnaposto evidenti (1.000 €/L su prodotti premium: il prodotto base ha ora la precedenza e benzina/gasolio sotto 1.2 €/L sono scartati). Restano casi dubbi ma non impossibili, es. gasolio servito a 1.379 €/L (mediana 2.50). Un controllo *relativo* (scartare i prezzi molto lontani dalla mediana locale) è possibile ma è una scelta di prodotto: rischia di nascondere offerte vere. Non implemento nulla senza tua indicazione.
 
-### 8. Impianti duplicati nell'anagrafica MIMIT
+### 9. Prezzi in tempo reale: copertura a freddo e pre-riscaldamento
+La prima ricerca in una zona nuova richiede molte chiamate (Milano→Bologna: 37 riquadri, ~9 s a freddo, poi 1.2 s). Con il tetto di 10 s la ricerca risponde comunque, dichiarando «prezzi in tempo reale su N zone su M». Un job che ri-scaldi ogni ora i riquadri più richiesti (o le grandi aree urbane) risolverebbe il problema per la maggior parte delle ricerche, ma aumenta il carico sul ministero: da valutare *dopo* la risposta al punto 7.
+
+### 10. Impianti duplicati nell'anagrafica MIMIT
 Lo stesso distributore fisico può comparire con due `idImpianto` (cambio gestore): es. 57265 «01858 ENI» (AUTOSERVICE SAS, nessun prezzo) e 62820 «1858 BREGNANO» (ENIMOOV, con prezzi), stesso indirizzo. Le stazioni senza prezzi non compaiono nei risultati, quindi oggi non c'è impatto; se in futuro due duplicati avessero entrambi prezzi vedresti due card sullo stesso punto. Nessuna azione in M1; da rivalutare se emergono casi reali.
 
-### 9. Rischio ToS Mapbox su geocoding persistente (invariato)
+### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.

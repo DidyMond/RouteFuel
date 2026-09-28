@@ -150,7 +150,7 @@ Layer mancante nella prima versione di questo documento — necessario per gli i
 | Database | PostgreSQL 16 + PostGIS (Docker locale / Neon o Railway in prod) |
 | Mappe & Routing | Mapbox (Directions API + GL JS) + turf.js, dietro `RoutingProvider` |
 | Geocoding & Autocomplete | Mapbox Geocoding API v6 (non Search Box API), dietro `GeocodingProvider` |
-| Dati carburante | Ingestione CSV MIMIT dietro `FuelDataProvider` |
+| Dati carburante | Anagrafica: CSV MIMIT giornaliero (`FuelDataProvider`). Prezzi: tempo reale dal sito ufficiale Osservaprezzi, per riquadri con cache (`LivePriceProvider`); il CSV resta come fallback |
 | Hosting | Vercel (frontend) + Railway (backend, cron, DB) |
 | Monorepo | pnpm workspaces: `apps/web`, `apps/api`, `packages/core` (logica pura), `packages/shared` (tipi) |
 | Test | Vitest (unit, logica pura in `packages/core` a zero I/O), Playwright (e2e, post-MVP) |
