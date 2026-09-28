@@ -4,7 +4,7 @@ Webapp (PWA) che trova il distributore di carburante più conveniente **lungo** 
 
 Documentazione di prodotto e architettura: [`docs/PRD.md`](docs/PRD.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/STACK_DECISION.md`](docs/STACK_DECISION.md), [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). Design system: [`DESIGN.md`](DESIGN.md).
 
-Stato attuale: **Milestone 0 — Vertical Slice** (ingestione dati reali funzionante, healthcheck, homepage statica). Nessuna logica di ricerca/risparmio ancora implementata (Milestone 1).
+Stato attuale: **Milestone 1 — Ricerca A→B e calcolo core** (branch `feat/milestone-1-search`, in revisione). Ricerca reale con autocomplete degli indirizzi, ranking per risparmio netto e verifica della deviazione col routing reale; mappa e bottom sheet arriveranno in Milestone 2.
 
 ## Struttura del repository
 
@@ -13,10 +13,10 @@ Monorepo pnpm:
 ```
 apps/
   web/     Frontend — Vite + React + TypeScript + Tailwind CSS
-  api/     Backend — Fastify + TypeScript, ingestione MIMIT, Kysely/PostgreSQL+PostGIS
+  api/     Backend — Fastify + TypeScript, ricerca, geocoding/routing (Mapbox), ingestione MIMIT, Kysely/PostgreSQL+PostGIS
 packages/
-  core/    Logica pura (parsing CSV, normalizzazione carburanti, validazioni) — zero I/O, zero rete
-  shared/  Tipi TypeScript condivisi tra web/api/core
+  core/    Logica pura (parsing CSV, normalizzazione, S_net, P_avg, Self/Servito, geometria) — zero I/O, zero rete
+  shared/  Tipi TypeScript condivisi (contratto API) tra web/api/core
 docs/      PRD, piano, decisione stack, domande aperte
 mockup/    Riferimento visivo/UX (non codice da portare over)
 assets/    Logo ufficiale
@@ -25,8 +25,9 @@ assets/    Logo ufficiale
 ## Prerequisiti
 
 - Node.js ≥ 20
-- pnpm ≥ 9 (se non installato: `corepack enable && corepack prepare pnpm@9 --activate`, oppure eseguire i comandi sotto con `npx pnpm@9 ...`)
+- pnpm ≥ 9 (consigliato 12)
 - Docker Desktop (per PostgreSQL + PostGIS in locale)
+- Facoltativo: un token Mapbox lato server (senza, l'API usa geocoding "fixture" e routing "mock", vedi sotto)
 
 ## Setup locale — passo per passo
 
@@ -36,14 +37,13 @@ assets/    Logo ufficiale
    pnpm install
    ```
 
-2. **Copiare le variabili d'ambiente**:
+2. **Copiare le variabili d'ambiente** per il backend:
 
    ```bash
-   cp .env.example .env
    cp .env.example apps/api/.env
    ```
 
-   I valori di default in `.env.example` bastano per lo sviluppo locale (nessuna chiave Mapbox è necessaria in questa milestone: verrà usata dalla Milestone 1 in poi).
+   I valori di default bastano per partire. Per usare **Mapbox reale** apri `apps/api/.env` e imposta `MAPBOX_SERVER_TOKEN` (un token dedicato al server, senza restrizioni URL, mai da committare: `.env` è ignorato da git). Il frontend non ha bisogno di alcun `.env` in questa milestone.
 
 3. **Avviare PostgreSQL + PostGIS**:
 
@@ -57,59 +57,77 @@ assets/    Logo ufficiale
    pnpm db:migrate
    ```
 
-5. **Lanciare l'ingestione dei due CSV MIMIT reali** (scarica, normalizza, fa upsert in DB — richiede connessione internet):
+5. **Ingerire i dati MIMIT reali** (scarica, normalizza, fa upsert in DB — richiede internet, circa 15 secondi):
 
    ```bash
    pnpm ingest
    ```
 
-   In alternativa, con l'API già in esecuzione (punto 7), è possibile innescare la stessa ingestione via HTTP:
+   L'ingestione è idempotente. In alternativa, con l'API in esecuzione: `POST http://localhost:3001/ingest`.
 
-   ```bash
-   curl -X POST http://localhost:3001/ingest
-   ```
-
-   Rilanciare l'ingestione (da CLI o da HTTP) è idempotente: non duplica righe.
-
-6. **Eseguire i test automatici** (parsing CSV e normalizzazione carburanti, zero rete/zero DB):
-
-   ```bash
-   pnpm test
-   ```
-
-7. **Avviare backend e frontend** (in due terminali separati):
+6. **Avviare backend e frontend** (in due terminali separati):
 
    ```bash
    pnpm dev:api
+   ```
+
+   ```bash
    pnpm dev:web
    ```
 
-   - API su http://localhost:3001 (`GET /health` per verificare stato server + DB)
-   - Frontend su http://localhost:5173
+   - API su http://localhost:3001 (`GET /health`)
+   - Frontend su http://localhost:5173 — **apri `localhost`, non `127.0.0.1`** (la CORS dell'API ammette solo `CORS_ORIGIN`).
+
+## Provare la ricerca
+
+**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola.
+
+**Dalla riga di comando** (PowerShell), esempio Milano Centrale → Bologna Centrale:
+
+```powershell
+$body = '{"origin":{"lon":9.204,"lat":45.4864},"destination":{"lon":11.3426,"lat":44.5058},"fuelType":"benzina"}'
+$res = Invoke-RestMethod -Method Post -Uri http://localhost:3001/search -ContentType 'application/json' -Body $body
+$res.referencePrice; $res.results | Select-Object -First 5
+Start-Sleep 4
+(Invoke-RestMethod http://localhost:3001/search/$($res.searchId)).refinement
+```
+
+Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=piazza%20duomo%20milano"`.
+
+**Senza chiavi Mapbox:** lasciando vuoto `MAPBOX_SERVER_TOKEN` il backend usa `FixtureGeocodingProvider` (una decina di luoghi noti: "milano centrale", "bologna", "roma termini"…) e `MockRoutingProvider` (percorsi rettilinei, non strade reali). La pipeline funziona identica, i valori di deviazione no.
+
+## Test
+
+| Comando | Cosa esegue | Richiede |
+|---|---|---|
+| `pnpm test` | 100 test di `packages/core` + 132 test di `apps/api` (provider, ricerca, kill switch, rate limit, rotte HTTP) | niente: zero rete, zero database |
+| `pnpm test:db` | 13 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
+| `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 
 ## Risoluzione problemi
 
-- **`autenticazione con password fallita per l'utente "routefuel"`**: sulla porta 5432 dell'host c'è probabilmente un PostgreSQL nativo già installato (servizio Windows `postgresql-x64-XX`). Per questo il container Docker espone Postgres sulla **5433** (vedi `docker-compose.yml` e `DATABASE_URL` in `.env.example`). Se hai copiato `.env` prima di questa modifica, assicurati che `DATABASE_URL` in `.env` e in `apps/api/.env` usi la porta 5433.
+- **`autenticazione con password fallita per l'utente "routefuel"`**: sulla porta 5432 c'è probabilmente un PostgreSQL nativo (servizio Windows `postgresql-x64-XX`). Il container espone Postgres sulla **5433**: controlla che `DATABASE_URL` in `apps/api/.env` usi quella porta.
 - **`docker` non riconosciuto nel terminale**: dopo l'installazione di Docker Desktop chiudi *tutte* le finestre di VS Code (e l'app da cui l'hai avviato) e riaprile, così ereditano il PATH aggiornato.
 - **Docker Desktop su Windows non parte**: servono BIOS con virtualizzazione attiva e le funzionalità Windows "Sottosistema Windows per Linux" e "Piattaforma macchina virtuale" (poi riavvio). Se compare `wsl-keepalive failed to start`, vedi i log in `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`.
+- **Autocomplete con "Suggerimenti non disponibili"**: quasi sempre CORS (stai usando `127.0.0.1` invece di `localhost`) oppure l'API non è avviata.
+- **`429 RATE_LIMITED`**: hai superato 20 ricerche/minuto (o 120 richieste di geocoding/minuto) dallo stesso IP; i limiti si cambiano in `apps/api/.env`.
+- **`503 BUDGET_EXHAUSTED`**: il contatore mensile delle chiamate Directions ha raggiunto `DIRECTIONS_HARD_LIMIT`. Il contatore è nella tabella `api_usage`.
 
 ## Comandi utili
 
 | Comando | Effetto |
 |---|---|
 | `pnpm install` | Installa le dipendenze di tutto il monorepo |
-| `pnpm dev:web` | Avvia il frontend (Vite) |
-| `pnpm dev:api` | Avvia il backend (Fastify, con reload automatico) |
-| `pnpm db:migrate` | Applica le migrazioni Kysely al database |
+| `pnpm dev:web` / `pnpm dev:api` | Avvia frontend (Vite) / backend (Fastify, con reload) |
+| `pnpm db:migrate` | Applica le migrazioni Kysely (ogni nuova migrazione va registrata in `apps/api/src/db/migrate.ts`) |
 | `pnpm ingest` | Scarica e normalizza i CSV MIMIT reali, upsert in DB |
-| `pnpm test` | Esegue i test automatici (attualmente in `packages/core`) |
-| `pnpm typecheck` | Type-check di tutti i pacchetti del monorepo |
-| `pnpm build` | Build di produzione di tutti i pacchetti che lo prevedono |
-| `docker compose up -d` | Avvia PostgreSQL + PostGIS in locale |
-| `docker compose down` | Ferma i servizi Docker (aggiungere `-v` per azzerare anche i dati) |
+| `pnpm build` | Build di produzione dei pacchetti che la prevedono |
+| `docker compose up -d` / `down` | Avvia / ferma PostgreSQL + PostGIS (`down -v` azzera anche i dati) |
 
 ## Note
 
 - Nessun segreto è hardcoded: tutte le chiavi/URL sensibili passano da variabili d'ambiente (vedi `.env.example`).
+- Mapbox non ha un tetto di spesa nativo: i limiti su `/search` e `/geocode` e il kill switch sulle chiamate Directions sono l'unica protezione. Non rimuoverli.
 - L'endpoint `POST /ingest` non ha autenticazione (fuori scope MVP, vedi `docs/PRD.md` §4.1): da non esporre pubblicamente senza protezione.
-- Il repository GitHub remoto è già configurato (`origin` → `https://github.com/DidyMond/RouteFuel.git`).
+- Il testo digitato negli indirizzi passa dal backend ma non viene mai scritto nei log.
+- Remote GitHub: `origin` → `https://github.com/DidyMond/RouteFuel.git`. Una branch per milestone (`feat/milestone-N-…`), integrata in `main` dopo la revisione.
