@@ -49,7 +49,7 @@ Obiettivo: dimostrare che l'intera catena (scaffold → ingestione dati reali �
 
 ---
 
-## Milestone 1 — Ricerca A→B e calcolo core ✅ implementata (in revisione)
+## Milestone 1 — Ricerca A→B e calcolo core ✅ confermata e integrata in `main` (29/09/2026)
 
 Branch: `feat/milestone-1-search`. Per ogni milestone si lavora su un branch dedicato e si integra in `main` solo dopo la revisione (come per M0).
 

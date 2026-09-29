@@ -1,5 +1,7 @@
 # Open Questions — dopo la Milestone 1
 
+> Milestone 1 **confermata e integrata in `main`** (29/09/2026). Stato dei punti: **7** in attesa risposta ministero · **9** rinviato · gli altri restano aperti con la raccomandazione indicata (procedo con quella se non indichi diversamente).
+
 Le decisioni della checklist pre-M0 (stack, mapping carburanti, cascata `P_avg`, `C_km`, semantica della deviazione, strategia ibrida, Self/Servito, default, rimozione dei dati non disponibili) sono **confermate** e implementate: il dettaglio è in `PLAN.md`. Il repository GitHub è configurato (`origin`).
 
 Qui restano i dubbi emersi durante l'implementazione di M1. Per ciascuno c'è una raccomandazione: se non indichi diversamente, procedo con quella.
@@ -38,7 +40,9 @@ Per rispettare la struttura richiesta (provider in `apps/api`) l'autocomplete pa
 ### 6. Posizione del toggle "Solo Self"
 Il PRD lo colloca tra le pill di Screen 2; in M1 non c'è ancora Screen 2 e la ricerca ne ha bisogno, quindi sta nel form della Home. Lo sposto in Screen 2 (come filtro che riesegue la ricerca) o lo lascio anche in Home?
 
-### 7. Fonte dei prezzi in tempo reale: non è un'API pubblica (**decisione tua**)
+### 7. Fonte dei prezzi in tempo reale: non è un'API pubblica — ⏳ IN ATTESA RISPOSTA MINISTERO
+> **Decisione (29/09/2026):** la mail a `osservaprezzi@mise.gov.it` la invia il product owner. Nel frattempo la fonte live resta **best effort** con fallback dichiarato al CSV. Nessuna estensione del carico sul ministero (niente warming job, vedi punto 9) finché non c'è l'ok formale.
+
 Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigore alle ore 8 del giorno precedente»), quindi per avere prezzi aggiornati M1 interroga anche il **sito ufficiale** Osservaprezzi (`POST carburanti.mise.gov.it/ospzApi/search/zone`, lo stesso endpoint che alimenta la ricerca per zona del sito). Funziona, ma:
 - **non è documentata né garantita**: nessun SLA, nessuna licenza d'uso esplicita per applicazioni terze, il formato può cambiare senza preavviso (l'endpoint del 2019 nel repository `teamdigitale/api-openapi-samples` oggi risponde `302`);
 - **ha un limite di richieste**: ho ricevuto HTTP 429 dopo ~80 richieste in pochi minuti con 6 in parallelo (mie prove di carico). Il client ora usa concorrenza 3, cache per riquadro da 60 minuti, pausa su 429 e tetto di 40 riquadri per ricerca;
@@ -49,7 +53,9 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 ### 8. Prezzi anomali residui
 Ho corretto i segnaposto evidenti (1.000 €/L su prodotti premium: il prodotto base ha ora la precedenza e benzina/gasolio sotto 1.2 €/L sono scartati). Restano casi dubbi ma non impossibili, es. gasolio servito a 1.379 €/L (mediana 2.50). Un controllo *relativo* (scartare i prezzi molto lontani dalla mediana locale) è possibile ma è una scelta di prodotto: rischia di nascondere offerte vere. Non implemento nulla senza tua indicazione.
 
-### 9. Prezzi in tempo reale: copertura a freddo e pre-riscaldamento
+### 9. Prezzi in tempo reale: copertura a freddo e pre-riscaldamento — ⏸ RINVIATO (post-autorizzazione / Milestone 6)
+> **Decisione (29/09/2026):** non implementare il warming job finché non arriva l'autorizzazione formale del ministero (punto 7). Da riprendere in Milestone 6 (hardening) se l'autorizzazione arriva.
+
 La prima ricerca in una zona nuova richiede molte chiamate (Milano→Bologna: 37 riquadri, ~9 s a freddo, poi 1.2 s). Con il tetto di 10 s la ricerca risponde comunque, dichiarando «prezzi in tempo reale su N zone su M». Un job che ri-scaldi ogni ora i riquadri più richiesti (o le grandi aree urbane) risolverebbe il problema per la maggior parte delle ricerche, ma aumenta il carico sul ministero: da valutare *dopo* la risposta al punto 7.
 
 ### 10. Impianti duplicati nell'anagrafica MIMIT
