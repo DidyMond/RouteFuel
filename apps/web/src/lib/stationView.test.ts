@@ -14,8 +14,9 @@ describe("applyFilters — ordinamento", () => {
     expect(ids(applyFilters(makeResults(), { sort: "detour", ...noFilters }))).toEqual([2, 3, 1]);
   });
 
-  it("«Sul percorso»: distanza dal tracciato crescente", () => {
-    expect(ids(applyFilters(makeResults(), { sort: "on_route", ...noFilters }))).toEqual([2, 1, 3]);
+  it("«Sul percorso»: ordine di percorrenza (la prima stazione che si incontra da A)", () => {
+    // Posizione lungo il tracciato: stazione 2 a 20 km, 3 a 50 km, 1 a 90 km.
+    expect(ids(applyFilters(makeResults(), { sort: "on_route", ...noFilters }))).toEqual([2, 3, 1]);
   });
 
   it("a parità di criterio decide il risparmio netto", () => {

@@ -218,6 +218,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@routefuel/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@routefuel/shared':
         specifier: workspace:*
         version: link:../../packages/shared

@@ -7,7 +7,7 @@ interface BottomNavProps {
 }
 
 const base = "flex flex-col items-center gap-0.5 py-1 px-space-lg rounded-full transition-colors";
-const active = "bg-primary-fixed/30 text-primary";
+const active = "bg-primary-fixed/30 text-on-primary-fixed-variant";
 const inactive = "text-on-surface-variant hover:text-on-surface";
 
 /**

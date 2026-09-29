@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@routefuel/core": "workspace:*",
     "@routefuel/shared": "workspace:*",
     "mapbox-gl": "^3.31.0",
     "react": "^18.3.1",

@@ -1,14 +1,12 @@
+import { sortResults, type ResultSortMode } from "@routefuel/core";
 import type { SearchFuelType, StationResult } from "@routefuel/shared";
 
 /**
  * Ordinamento e filtri della lista risultati, tutti lato client: cambiare filtro non fa alcuna chiamata di rete.
- *
- * - `savings`  «Più conveniente»: risparmio netto decrescente (l'ordine del server).
- * - `detour`   «Minor deviazione»: km extra crescenti.
- * - `on_route` «Sul percorso»: distanza laterale dal tracciato crescente (le stazioni più "sulla strada" per prime).
- *   Interpretazione provvisoria, vedi docs/OPEN_QUESTIONS.md.
+ * La logica di ordinamento sta in `@routefuel/core` (`sortResults`, con i test): «Più conveniente» per risparmio,
+ * «Minor deviazione» per km extra, «Sul percorso» per **ordine di percorrenza** (la prima stazione che si incontra da A).
  */
-export type SortMode = "savings" | "detour" | "on_route";
+export type SortMode = ResultSortMode;
 
 export interface ResultFilters {
   sort: SortMode;
@@ -20,20 +18,12 @@ export interface ResultFilters {
 
 export const DEFAULT_SORT: SortMode = "savings";
 
-const bySavings = (a: StationResult, b: StationResult) => b.netSavings - a.netSavings;
-
-const COMPARATORS: Record<SortMode, (a: StationResult, b: StationResult) => number> = {
-  savings: bySavings,
-  detour: (a, b) => a.detourKm - b.detourKm || bySavings(a, b),
-  on_route: (a, b) => a.lateralDistanceKm - b.lateralDistanceKm || bySavings(a, b),
-};
-
 /** Restituisce una nuova lista filtrata e ordinata; l'input non viene modificato. */
 export function applyFilters(results: readonly StationResult[], filters: ResultFilters): StationResult[] {
-  return results
+  const kept = results
     .filter((r) => (filters.onlySelf ? r.isSelf : true))
-    .filter((r) => (filters.motorwayOnly ? r.station.tipoImpianto === "autostradale" : true))
-    .sort(COMPARATORS[filters.sort]);
+    .filter((r) => (filters.motorwayOnly ? r.station.tipoImpianto === "autostradale" : true));
+  return sortResults(kept, filters.sort);
 }
 
 /**

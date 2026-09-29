@@ -222,7 +222,7 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
               </Chip>
               <Chip small active={motorwayOnly} onClick={() => setMotorwayOnly((value) => !value)}>
                 {motorwayOnly && <CheckIcon className="w-3.5 h-3.5" />}
-                Autostrada &amp; Extraurbane
+                Autostrada
               </Chip>
             </div>
             <RefinementNotice refinement={refinement} />

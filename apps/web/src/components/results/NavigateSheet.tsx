@@ -66,7 +66,7 @@ export function NavigateSheet({ result, fuelType, onClose }: NavigateSheetProps)
           <span className="text-numeric-stat font-numeric-stat tabular-nums text-on-surface">€{formatPrice(result.price)}</span>
           <div className="flex flex-col">
             <span className="text-label-md font-label-md text-on-surface-variant">{fuelModeLabel(fuelType, result.isSelf)}</span>
-            <span className={`text-label-md font-label-md tabular-nums ${result.netSavings > 0 ? "text-primary" : "text-on-error-container"}`}>
+            <span className={`text-label-md font-label-md tabular-nums ${result.netSavings > 0 ? "text-on-primary-fixed-variant" : "text-on-error-container"}`}>
               {result.netSavings > 0 ? "Risparmi" : "Non conviene"} {formatEuro(result.netSavings)}
             </span>
           </div>

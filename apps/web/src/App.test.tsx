@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -18,6 +19,18 @@ describe("App — routing", () => {
     expect(nav).toHaveTextContent("Cerca");
     expect(screen.queryByRole("link", { name: "Risultati" })).not.toBeInTheDocument();
     expect(screen.getByText("Risultati").closest("[aria-disabled=true]")).not.toBeNull();
+  });
+
+  it("«Ripristina» (testo piccolo) usa il verde scuro per il contrasto WCAG", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await user.clear(screen.getByLabelText("Consumo del veicolo"));
+    await user.type(screen.getByLabelText("Consumo del veicolo"), "16");
+    expect(screen.getByRole("button", { name: "Ripristina" })).toHaveClass("text-on-primary-fixed-variant");
   });
 
   it("aprire /results senza una ricerca riporta alla Home", () => {

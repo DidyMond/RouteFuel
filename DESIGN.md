@@ -154,6 +154,7 @@ These rules take precedence over any inferred styling. Every generated screen MU
 - The tertiary color is ALWAYS `#0F172A` (Deep Slate). Used only for grounding typography and dark surfaces.
 - Use `primary` (#059669) for all primary CTA fills, active chip states, and positive-metric values inside tinted pills (`text-primary` on `bg-primary/10`).
 - Use `secondary` (#0284C7) for route lines, navigation icons, detour metrics.
+- Per testo piccolo (<14px) su sfondo chiaro, usare `text-on-primary-fixed-variant` (#005137) invece di `text-primary` (#059669) per conformità WCAG AA. I fill/contenitori restano `bg-primary`.
 
 ### Shapes & Radii
 - **Cards in lists** (station results, settings sections, accordion groups, waypoint nodes): ALWAYS `rounded-lg` (2rem).

@@ -30,7 +30,7 @@ export function TelemetryCapsule({ origin, destination, distanceKm, durationMinu
       </div>
       <div className="flex items-center gap-1 bg-surface-container-high px-2 py-0.5 rounded-full shrink-0">
         <GasStationIcon className="w-[13px] h-[13px] text-primary" />
-        <span className="text-label-sm font-label-sm text-primary tabular-nums">{stationCount} staz.</span>
+        <span className="text-label-sm font-label-sm text-on-primary-fixed-variant tabular-nums">{stationCount} staz.</span>
       </div>
     </div>
   );

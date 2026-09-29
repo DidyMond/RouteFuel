@@ -86,7 +86,7 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
 
         <span
           className={`inline-flex items-center gap-1 h-[22px] px-space-md rounded-full text-label-sm font-label-sm tabular-nums whitespace-nowrap ${
-            saves ? "bg-primary/10 text-primary" : "bg-error-container text-on-error-container"
+            saves ? "bg-primary/10 text-on-primary-fixed-variant" : "bg-error-container text-on-error-container"
           }`}
         >
           <SavingsIcon className="w-3.5 h-3.5" />

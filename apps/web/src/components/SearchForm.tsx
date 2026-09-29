@@ -192,7 +192,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
               <button
                 type="button"
                 onClick={() => setConsumptionText(String(SEARCH_DEFAULTS.consumptionKmPerLiter))}
-                className="text-label-md font-label-md text-primary hover:underline"
+                className="text-label-md font-label-md text-on-primary-fixed-variant hover:underline"
               >
                 Ripristina
               </button>

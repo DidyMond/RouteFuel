@@ -113,7 +113,7 @@ describe("ResultsScreen — contenuto", () => {
 });
 
 describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () => {
-  it("«Minor deviazione» e «Sul percorso» riordinano l'elenco e la mappa, senza alcuna chiamata di rete", async () => {
+  it("«Minor deviazione» e «Sul percorso» (ordine di percorrenza) riordinano l'elenco e la mappa, senza alcuna chiamata di rete", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
     expect(cardIds()).toEqual([1, 2, 3]);
@@ -123,7 +123,8 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(screen.getByTestId("map-stub")).toHaveTextContent("2,3,1");
 
     await user.click(screen.getByRole("button", { name: "Sul percorso" }));
-    expect(cardIds()).toEqual([2, 1, 3]);
+    expect(cardIds()).toEqual([2, 3, 1]);
+    expect(screen.getByTestId("map-stub")).toHaveTextContent("2,3,1");
 
     await user.click(screen.getByRole("button", { name: "Più conveniente" }));
     expect(cardIds()).toEqual([1, 2, 3]);
@@ -169,11 +170,11 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(pill).toBeDisabled();
   });
 
-  it("«Autostrada & Extraurbane» filtra per Tipo Impianto", async () => {
+  it("«Autostrada» filtra per Tipo Impianto", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
 
-    await user.click(screen.getByRole("button", { name: "Autostrada & Extraurbane" }));
+    await user.click(screen.getByRole("button", { name: "Autostrada" }));
     expect(cardIds()).toEqual([1]);
     expect(screen.getByText("1 staz.")).toBeInTheDocument();
     expect(mapProps.current?.stations.map((s) => s.id)).toEqual([1]);
@@ -184,7 +185,7 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     const results = [makeResult({ station: { id: 5, tipoImpianto: "stradale" } })];
     render(<ResultsScreen state={makeState({ response: makeResponse({ results }), results })} />);
 
-    await user.click(screen.getByRole("button", { name: "Autostrada & Extraurbane" }));
+    await user.click(screen.getByRole("button", { name: "Autostrada" }));
     expect(screen.getByText("Nessuna stazione con questi filtri")).toBeInTheDocument();
     expect(screen.queryAllByTestId("station-card")).toHaveLength(0);
 
@@ -192,11 +193,20 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(cardIds()).toEqual([5]);
   });
 
+  it("«Sul percorso» mostra per prima la stazione più vicina alla partenza lungo il tracciato", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    await user.click(screen.getByRole("button", { name: "Sul percorso" }));
+    const along = screen.getAllByTestId("station-card").map((card) => Number(/A (\d+),\d km dalla partenza/.exec(card.textContent ?? "")?.[1]));
+    expect(along).toEqual([...along].sort((a, b) => a - b));
+    expect(along[0]).toBe(20);
+  });
+
   it("una nuova ricerca (searchId diverso) riparte da filtri puliti", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<ResultsScreen state={makeState()} />);
     await user.click(screen.getByRole("button", { name: "Minor deviazione" }));
-    await user.click(screen.getByRole("button", { name: "Autostrada & Extraurbane" }));
+    await user.click(screen.getByRole("button", { name: "Autostrada" }));
     expect(cardIds()).toEqual([1]);
 
     rerender(<ResultsScreen state={makeState({ response: makeResponse({ searchId: "s2" }) })} />);
@@ -233,6 +243,22 @@ describe("ResultsScreen — elenco lungo", () => {
     act(() => mapProps.current?.onSelectStation(1035));
     expect(document.getElementById("station-1035")).not.toBeNull();
     expect(document.getElementById("station-1035")).toHaveAttribute("aria-current", "true");
+  });
+});
+
+describe("ResultsScreen — contrasto del testo piccolo (WCAG AA)", () => {
+  it("nessun testo sotto i 14px usa text-primary: si usa text-on-primary-fixed-variant", () => {
+    const { container } = render(<ResultsScreen state={makeState()} />);
+    const small = container.querySelectorAll(".text-label-sm, .text-label-md, .text-body-sm");
+    expect(small.length).toBeGreaterThan(10);
+    const offenders = [...small].filter((el) => el.classList.contains("text-primary")).map((el) => el.outerHTML.slice(0, 90));
+    expect(offenders).toEqual([]);
+  });
+
+  it("il risparmio (pill verde chiara) e il conteggio in capsula usano il verde scuro", () => {
+    render(<ResultsScreen state={makeState()} />);
+    expect(within(screen.getAllByTestId("station-card")[0]!).getByText(/Risparmi/)).toHaveClass("text-on-primary-fixed-variant", "bg-primary/10");
+    expect(screen.getByText("3 staz.")).toHaveClass("text-on-primary-fixed-variant");
   });
 });
 
