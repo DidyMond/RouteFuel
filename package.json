@@ -13,7 +13,8 @@
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "db:migrate": "pnpm --filter @routefuel/api migrate",
-    "ingest": "pnpm --filter @routefuel/api ingest"
+    "ingest": "pnpm --filter @routefuel/api ingest",
+    "test:db": "pnpm --filter @routefuel/api test:db"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

@@ -28,6 +28,31 @@ describe("dedupeToLowestPricePerStationFuelMode", () => {
     expect(result[0]?.rawDescCarburante).toBe("Gasolio");
   });
 
+  it("il prodotto base vince sulla variante anche se questa costa meno (segnaposto 'Blue Super' 1.000 vs 'Benzina' 2.199)", () => {
+    const prices = [
+      price({ fuelType: "benzina", rawDescCarburante: "Blue Super", price: 1.0, isSelf: true }),
+      price({ fuelType: "benzina", rawDescCarburante: "Benzina", price: 2.199, isSelf: true }),
+    ];
+    const result = dedupeToLowestPricePerStationFuelMode(prices);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ rawDescCarburante: "Benzina", price: 2.199 });
+  });
+
+  it("l'ordine di arrivo non cambia l'esito (base prima o dopo la variante)", () => {
+    const base = price({ fuelType: "benzina", rawDescCarburante: "Benzina", price: 2.199 });
+    const variant = price({ fuelType: "benzina", rawDescCarburante: "Blue Super", price: 1.0 });
+    expect(dedupeToLowestPricePerStationFuelMode([base, variant])[0]?.rawDescCarburante).toBe("Benzina");
+    expect(dedupeToLowestPricePerStationFuelMode([variant, base])[0]?.rawDescCarburante).toBe("Benzina");
+  });
+
+  it("senza prodotto base, tra le sole varianti si tiene il prezzo più basso", () => {
+    const prices = [
+      price({ rawDescCarburante: "Blue Diesel", price: 1.999 }),
+      price({ rawDescCarburante: "Hi-Q Diesel", price: 1.899 }),
+    ];
+    expect(dedupeToLowestPricePerStationFuelMode(prices)[0]?.rawDescCarburante).toBe("Hi-Q Diesel");
+  });
+
   it("a parità di prezzo tiene la comunicazione più recente", () => {
     const prices = [
       price({ price: 1.75, communicatedAt: "2026-09-24T10:00:00.000Z", rawDescCarburante: "Gasolio (vecchio)" }),

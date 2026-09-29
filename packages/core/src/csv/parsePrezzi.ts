@@ -80,7 +80,8 @@ export function parsePrezziCsv(content: string): PrezziParseResult {
     }
 
     const price = Number(priceRaw);
-    if (!isPlausiblePrice(price)) {
+    const normalized = normalizeFuelType(rawDescCarburante);
+    if (!isPlausiblePrice(price, normalized.fuelType)) {
       warnings.push({ line: i + 1, reason: `prezzo fuori range plausibile ("${priceRaw}")`, raw: line });
       continue;
     }
@@ -91,7 +92,6 @@ export function parsePrezziCsv(content: string): PrezziParseResult {
       continue;
     }
 
-    const normalized = normalizeFuelType(rawDescCarburante);
     if (normalized.matchedVia === "unknown") {
       warnings.push({
         line: i + 1,

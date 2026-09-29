@@ -115,7 +115,7 @@ async function upsertStations(stations: Station[]): Promise<void> {
   }
 }
 
-async function upsertPrices(prices: FuelPrice[]): Promise<void> {
+export async function upsertPrices(prices: FuelPrice[]): Promise<void> {
   for (const chunk of toChunks(prices, CHUNK_SIZE)) {
     await db
       .insertInto("fuel_prices")
@@ -130,12 +130,16 @@ async function upsertPrices(prices: FuelPrice[]): Promise<void> {
         })),
       )
       .onConflict((oc) =>
-        oc.columns(["station_id", "fuel_type", "is_self"]).doUpdateSet((eb) => ({
-          raw_desc_carburante: eb.ref("excluded.raw_desc_carburante"),
-          price: eb.ref("excluded.price"),
-          communicated_at: eb.ref("excluded.communicated_at"),
-          updated_at: sql`now()`,
-        })),
+        oc
+          .columns(["station_id", "fuel_type", "is_self"])
+          .doUpdateSet((eb) => ({
+            raw_desc_carburante: eb.ref("excluded.raw_desc_carburante"),
+            price: eb.ref("excluded.price"),
+            communicated_at: eb.ref("excluded.communicated_at"),
+            updated_at: sql`now()`,
+          }))
+          // Il file giornaliero è indietro di 1-2 giorni: non deve sostituire prezzi live più recenti.
+          .where((eb) => eb("fuel_prices.communicated_at", "<=", eb.ref("excluded.communicated_at"))),
       )
       .execute();
   }

@@ -37,8 +37,25 @@ export interface IngestionRunsTable {
   error_message: string | null;
 }
 
+export interface ApiUsageTable {
+  service: string;
+  /** 'YYYY-MM' (UTC). */
+  period: string;
+  /** bigint: node-postgres lo restituisce come stringa. */
+  count: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
+export interface LivePriceTilesTable {
+  tile_id: string;
+  refreshed_at: Generated<Date>;
+  stations_seen: Generated<number>;
+}
+
 export interface Database {
   stations: StationsTable;
   fuel_prices: FuelPricesTable;
   ingestion_runs: IngestionRunsTable;
+  api_usage: ApiUsageTable;
+  live_price_tiles: LivePriceTilesTable;
 }

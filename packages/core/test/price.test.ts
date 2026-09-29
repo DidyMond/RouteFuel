@@ -20,4 +20,19 @@ describe("isPlausiblePrice", () => {
     expect(isPlausiblePrice(-1)).toBe(false);
     expect(isPlausiblePrice(Number.NaN)).toBe(false);
   });
+
+  it("per benzina e gasolio rifiuta i segnaposto osservati nei dati reali (1.000, 0.780)", () => {
+    expect(isPlausiblePrice(1.0, "benzina")).toBe(false);
+    expect(isPlausiblePrice(0.78, "diesel")).toBe(false);
+    expect(isPlausiblePrice(1.0, "hvo")).toBe(false);
+  });
+
+  it("GPL e metano possono legittimamente costare meno di 1.2 €/L", () => {
+    expect(isPlausiblePrice(0.849, "gpl")).toBe(true);
+    expect(isPlausiblePrice(1.0, "metano")).toBe(true);
+  });
+
+  it("senza tipo di carburante vale solo il range generale", () => {
+    expect(isPlausiblePrice(1.0)).toBe(true);
+  });
 });

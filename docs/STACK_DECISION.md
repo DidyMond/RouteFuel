@@ -98,7 +98,7 @@ Layer mancante nella prima versione di questo documento — necessario per gli i
 - Free tier: 100.000 richieste/mese (categoria "temporary geocoding" — risultati usati al volo, non salvati in un DB), ampiamente sufficiente per un MVP con debounce.
 
 **Privacy/GDPR minimo:**
-- Le chiamate di autocomplete partono direttamente dal browser verso Mapbox (pattern standard, CORS abilitato) con un token pubblico a restrizione di dominio: il nostro backend non riceve né logga il testo digitato carattere per carattere.
+- **Aggiornamento (Milestone 1):** l'autocomplete passa dal nostro backend (`GET /geocode/autocomplete`, `GET /geocode/reverse`) invece di partire direttamente dal browser, perché il `GeocodingProvider` vive in `apps/api`. Il backend vede quindi in transito il testo digitato, ma **non lo registra**: il serializer dei log scarta la query string (verificato da un test) ed esiste un rate limit dedicato. Vantaggio: nessuna chiave Mapbox nel browser finché non serve la mappa (Milestone 2), provider fixture utilizzabili in sviluppo. Rivalutabile in M2.
 - Si usa solo "temporary geocoding": nessun indirizzo testuale viene salvato lato server in un database (coerente con l'assenza di persistenza server-side delle rotte, vedi `OPEN_QUESTIONS.md`).
 - Debounce (300–400ms) e soglia minima 3 caratteri prima di interrogare, per ridurre sia i costi sia la quantità di digitazione inviata a terzi.
 - Se in futuro si volesse cache-are lato server indirizzi risolti (per performance o analytics), attenzione: quello è "permanent geocoding" su Mapbox, **senza free tier** — da valutare separatamente e non nell'MVP.
@@ -106,10 +106,10 @@ Layer mancante nella prima versione di questo documento — necessario per gli i
 
 **Fallback/test:** `FixtureGeocodingProvider` — restituisce coordinate fisse per un set noto di indirizzi di test (es. "Milano Centrale", "Bologna Fiera"), zero chiamate di rete, usato nei test automatici.
 
-**Gestione token (3 token distinti, mai uno solo):**
-1. Token pubblico con **URL-restriction** sul dominio di produzione → usato dal browser per Map GL JS + Geocoding autocomplete/reverse.
-2. Token pubblico **senza restrizione URL** → usato solo dal backend (variabile d'ambiente server-side, mai nel bundle frontend) per le chiamate Directions (route diretta + top-5 + on-demand dettaglio). Non ha protezione via Referer, quindi va protetto indirettamente con rate limiting sul nostro endpoint `/search` (vedi `PLAN.md` M1).
-3. Token permissivo separato per sviluppo locale (permette `localhost`, mai committato, solo in `.env.local`).
+**Gestione token (aggiornata alla Milestone 1):**
+1. **Milestone 1 — un solo token, lato server** (`MAPBOX_SERVER_TOKEN` in `apps/api/.env` e nelle variabili d'ambiente del backend in produzione): serve a Directions e a Geocoding. Nessuna restrizione URL (le richieste partono dal server e non hanno header `Referer`): la protezione è il rate limit su `/search` e `/geocode`, più il kill switch sul contatore Directions (soglia soft 80.000, hard 98.000). Va creato un token dedicato (es. `routefuel-server`) e non riusato per il browser.
+2. **Milestone 2 — token per il browser** (`VITE_MAPBOX_PUBLIC_TOKEN`, solo Map GL JS): con **URL-restriction** sul dominio di produzione e su `http://localhost:5173/*` per lo sviluppo. Il token di default dell'account non ha restrizioni: va ristretto o sostituito prima di finire in un bundle pubblico.
+3. Mai committare token: `.env` è ignorato da git e `.env.example` contiene solo segnaposto.
 
 **Caching consentito**: solo cache a breve termine (in-memory o Redis, TTL 10–15 minuti) per Directions e Geocoding, mai persistenza permanente in una tabella di database — coerente con la categoria di pricing "temporary" di Mapbox.
 
@@ -150,7 +150,7 @@ Layer mancante nella prima versione di questo documento — necessario per gli i
 | Database | PostgreSQL 16 + PostGIS (Docker locale / Neon o Railway in prod) |
 | Mappe & Routing | Mapbox (Directions API + GL JS) + turf.js, dietro `RoutingProvider` |
 | Geocoding & Autocomplete | Mapbox Geocoding API v6 (non Search Box API), dietro `GeocodingProvider` |
-| Dati carburante | Ingestione CSV MIMIT dietro `FuelDataProvider` |
+| Dati carburante | Anagrafica: CSV MIMIT giornaliero (`FuelDataProvider`). Prezzi: tempo reale dal sito ufficiale Osservaprezzi, per riquadri con cache (`LivePriceProvider`); il CSV resta come fallback |
 | Hosting | Vercel (frontend) + Railway (backend, cron, DB) |
 | Monorepo | pnpm workspaces: `apps/web`, `apps/api`, `packages/core` (logica pura), `packages/shared` (tipi) |
 | Test | Vitest (unit, logica pura in `packages/core` a zero I/O), Playwright (e2e, post-MVP) |

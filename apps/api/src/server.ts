@@ -1,23 +1,27 @@
-import cors from "@fastify/cors";
-import Fastify from "fastify";
+import { buildApp } from "./app";
+import { createRuntime } from "./container";
 import { env } from "./env";
-import { registerHealthRoutes } from "./routes/health";
-import { registerIngestionRoutes } from "./routes/ingestion";
 
-async function buildServer() {
-  const app = Fastify({ logger: true });
+async function main() {
+  const runtime = createRuntime();
 
-  await app.register(cors, { origin: env.CORS_ORIGIN });
+  const app = await buildApp({
+    logger: true,
+    trustProxy: env.TRUST_PROXY,
+    corsOrigin: env.CORS_ORIGIN,
+    searchService: runtime.searchService,
+    geocoding: runtime.geocoding,
+    searchRateLimitPerMinute: env.SEARCH_RATE_LIMIT_PER_MIN,
+    geocodeRateLimitPerMinute: env.GEOCODE_RATE_LIMIT_PER_MIN,
+    checkDatabase: runtime.checkDatabase,
+    runIngestion: runtime.runIngestion,
+  });
 
-  registerHealthRoutes(app);
-  registerIngestionRoutes(app);
-
-  return app;
+  app.log.info(runtime.providers, "Provider attivi (geocoding / routing)");
+  await app.listen({ port: env.API_PORT, host: env.API_HOST });
 }
 
-buildServer()
-  .then((app) => app.listen({ port: env.API_PORT, host: env.API_HOST }))
-  .catch((error) => {
-    console.error("Avvio del server fallito:", error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error("Avvio del server fallito:", error);
+  process.exit(1);
+});

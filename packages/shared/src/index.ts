@@ -42,3 +42,157 @@ export interface HealthStatus {
   database: "ok" | "error";
   timestamp: string;
 }
+
+// ---------------------------------------------------------------------------
+// Contratto API — ricerca e geocoding (Milestone 1)
+// ---------------------------------------------------------------------------
+
+export interface LonLat {
+  lon: number;
+  lat: number;
+}
+
+/** Carburanti selezionabili in ricerca (MVP: solo i 4 tipi base, vedi MVP_VISIBLE_FUEL_TYPES). */
+export type SearchFuelType = "benzina" | "diesel" | "gpl" | "metano";
+
+export interface SearchRequest {
+  origin: LonLat;
+  destination: LonLat;
+  fuelType: SearchFuelType;
+  /** Litri da rifornire (V_refill). */
+  liters: number;
+  /** Deviazione massima, km extra di A→stazione→B rispetto ad A→B (round-trip). */
+  maxDetourKm: number;
+  /** Consumo del veicolo, km/L. */
+  consumptionKmPerLiter: number;
+  /** Valore del tempo, €/minuto. */
+  valueOfTimePerMinute: number;
+  /** true = solo stazioni con prezzo Self; false = include anche le solo-Servito. */
+  onlySelf: boolean;
+  /** Prezzi comunicati da più di N ore sono esclusi dai risultati. */
+  maxPriceAgeHours: number;
+}
+
+/** 'proxy' = stima geometrica; 'routing' = verificata con il provider di routing. */
+export type DetourSource = "proxy" | "routing";
+
+export interface StationSummary {
+  id: number;
+  nomeImpianto: string;
+  bandiera: string;
+  gestore: string;
+  indirizzo: string;
+  comune: string;
+  provincia: string;
+  tipoImpianto: TipoImpianto;
+  lat: number;
+  lon: number;
+}
+
+export interface StationResult {
+  station: StationSummary;
+  /** Prezzo effettivo usato (€/L). */
+  price: number;
+  isSelf: boolean;
+  /** true se la stazione non ha un prezzo Self e si usa il Servito. */
+  servitoOnly: boolean;
+  /** ISO 8601, data di comunicazione del prezzo usato. */
+  priceUpdatedAt: string;
+  /** Distanza one-way dal tracciato, km. */
+  lateralDistanceKm: number;
+  /** Posizione lungo il tracciato, km dall'origine. */
+  alongRouteKm: number;
+  /** Km extra di A→stazione→B rispetto ad A→B. */
+  detourKm: number;
+  detourMinutes: number;
+  detourSource: DetourSource;
+  /** (P_avg − P_station) × litri, €. */
+  grossSavings: number;
+  /** Costo carburante + tempo della deviazione, €. */
+  detourCost: number;
+  /** Net Savings Index, €. */
+  netSavings: number;
+}
+
+export type ReferencePriceLevel = "on_route" | "corridor" | "national";
+
+export interface ReferencePriceInfo {
+  value: number;
+  level: ReferencePriceLevel;
+  sampleSize: number;
+}
+
+export type RefinementStatus = "pending" | "done" | "skipped" | "failed";
+
+export interface RefinementInfo {
+  status: RefinementStatus;
+  /** Motivo quando status è 'skipped' o 'failed'. */
+  reason?: "budget_soft_limit" | "budget_hard_limit" | "routing_error";
+}
+
+export interface SearchResponse {
+  searchId: string;
+  route: { distanceKm: number; durationMinutes: number };
+  referencePrice: ReferencePriceInfo;
+  /** Costo marginale al km (€/km) usato nel calcolo. */
+  costPerKm: number;
+  /** Ordinati per netSavings decrescente. */
+  results: StationResult[];
+  /** Stazioni candidate valutate prima del limite di risposta. */
+  candidatesEvaluated: number;
+  /** Data dell'ultima ingestione del file MIMIT giornaliero (ISO 8601): è la base dei prezzi, indietro di 1-2 giorni. */
+  pricesUpdatedAt: string | null;
+  /** Stato dell'aggiornamento in tempo reale dei prezzi lungo il percorso (sito ufficiale Osservaprezzi). */
+  livePrices: LivePricesInfo;
+  refinement: RefinementInfo;
+}
+
+/**
+ * - `live`: tutti i riquadri del corridoio hanno prezzi aggiornati in tempo reale;
+ * - `partial`: solo una parte (tempo o limite di chiamate esauriti): il resto usa il file giornaliero;
+ * - `unavailable`: la fonte in tempo reale non ha risposto, si usano solo i prezzi del file giornaliero;
+ * - `disabled`: aggiornamento in tempo reale non attivo (configurazione).
+ */
+export type LivePricesStatus = "live" | "partial" | "unavailable" | "disabled";
+
+export interface LivePricesInfo {
+  status: LivePricesStatus;
+  /** Riquadri geografici che coprono il corridoio. */
+  tilesTotal: number;
+  /** Riquadri con prezzi live (appena scaricati o in cache recente). */
+  tilesLive: number;
+  /** Età in minuti del riquadro live meno recente tra quelli usati, null se nessuno. */
+  oldestLiveAgeMinutes: number | null;
+}
+
+/** Risposta di GET /search/:id — risultati riordinati dopo il ricalcolo con routing reale. */
+export interface SearchRefinementResponse {
+  searchId: string;
+  refinement: RefinementInfo;
+  results: StationResult[];
+}
+
+export interface GeocodeSuggestion {
+  id: string;
+  /** Testo principale, es. "Via Roma 10". */
+  name: string;
+  /** Testo completo da mostrare/inserire nel campo. */
+  label: string;
+  lon: number;
+  lat: number;
+}
+
+export interface GeocodeAutocompleteResponse {
+  suggestions: GeocodeSuggestion[];
+}
+
+export interface GeocodeReverseResponse {
+  label: string;
+}
+
+export interface ApiErrorBody {
+  error: {
+    code: string;
+    message: string;
+  };
+}
