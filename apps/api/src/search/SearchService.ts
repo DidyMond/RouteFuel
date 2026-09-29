@@ -161,7 +161,11 @@ export class SearchService {
 
     return {
       searchId: session.id,
-      route: { distanceKm: round(route.distanceKm, 1), durationMinutes: round(route.durationMinutes, 0) },
+      route: {
+        distanceKm: round(route.distanceKm, 1),
+        durationMinutes: round(route.durationMinutes, 0),
+        geometry: simplified.map(([lon, lat]) => [round(lon, 5), round(lat, 5)] as [number, number]),
+      },
       referencePrice: { ...session.referencePrice, value: round(session.referencePrice.value, 3) },
       costPerKm: round(session.costPerKm, 4),
       results: results.map(present),

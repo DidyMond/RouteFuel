@@ -132,6 +132,15 @@ describe("SearchService.search — ranking e prezzo di riferimento", () => {
     const response = await service.search(request);
     expect(response.route.distanceKm).toBeGreaterThan(75);
     expect(response.route.durationMinutes).toBeGreaterThan(0);
+    // Il tracciato per la mappa parte dall'origine e arriva alla destinazione, con coordinate a 5 decimali.
+    const { geometry } = response.route;
+    expect(geometry.length).toBeGreaterThanOrEqual(2);
+    expect(geometry[0]).toEqual([9, 45]);
+    expect(geometry[geometry.length - 1]).toEqual([10, 45]);
+    for (const [lon, lat] of geometry) {
+      expect(Number(lon.toFixed(5))).toBe(lon);
+      expect(Number(lat.toFixed(5))).toBe(lat);
+    }
     expect(response.candidatesEvaluated).toBe(3);
     expect(response.pricesUpdatedAt).toBe("2026-09-28T07:00:00.000Z");
     expect(response.searchId).toMatch(/^[0-9a-f-]{36}$/);

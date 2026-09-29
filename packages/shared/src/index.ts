@@ -132,7 +132,12 @@ export interface RefinementInfo {
 
 export interface SearchResponse {
   searchId: string;
-  route: { distanceKm: number; durationMinutes: number };
+  route: {
+    distanceKm: number;
+    durationMinutes: number;
+    /** Tracciato semplificato (~50 m) per la mappa: coordinate [lon, lat] con 5 decimali. */
+    geometry: Array<[number, number]>;
+  };
   referencePrice: ReferencePriceInfo;
   /** Costo marginale al km (€/km) usato nel calcolo. */
   costPerKm: number;
