@@ -1,4 +1,4 @@
-# Open Questions — dopo la Milestone 1
+# Open Questions — dopo la Milestone 2
 
 > Milestone 1 **confermata e integrata in `main`** (29/09/2026). Stato dei punti: **7** in attesa risposta ministero · **9** rinviato · gli altri restano aperti con la raccomandazione indicata (procedo con quella se non indichi diversamente).
 
@@ -10,8 +10,12 @@ Qui restano i dubbi emersi durante l'implementazione di M1. Per ciascuno c'è un
 
 ## Azione a tuo carico
 
-### A. Token Mapbox dedicato al server
-Il token di default dell'account è stato incollato in chat e non ha restrizioni: va considerato esposto. Per M1 serve **un solo token, lato server** (`MAPBOX_SERVER_TOKEN`). Raccomando di crearne uno nuovo e dedicato (istruzioni nel riepilogo di M1) e, quando arriverà la mappa in M2, di **ristringere per URL** il token di default (o sostituirlo) prima che finisca in un bundle pubblico. Non blocca i test locali.
+### A. Token Mapbox pubblico per il browser (serve per vedere la mappa di M2)
+Il token server (`MAPBOX_SERVER_TOKEN`) **non va usato nel browser**. Per la mappa serve un secondo token, **pubblico e ristretto per URL**:
+1. account.mapbox.com → **Tokens** → **Create a token**, nome `routefuel-web`, solo gli scope pubblici di default.
+2. In **URL restrictions** aggiungi `http://localhost:5173/` (e in seguito il dominio di produzione). Se il browser dovesse comunque ricevere 401/403 da `localhost`, crea un secondo token solo per lo sviluppo, senza restrizioni.
+3. Crea `apps/web/.env` (è ignorato da git) con `VITE_MAPBOX_PUBLIC_TOKEN=pk.…` e **riavvia** `pnpm dev:web` (Vite legge il file solo all'avvio; le variabili `VITE_*` sono già supportate nativamente, non serve alcun plugin).
+Senza token l'app funziona lo stesso: la mappa mostra «Mappa non disponibile» e resta l'elenco. Ricorda che il token di default incollato in chat all'inizio va comunque ristretto o sostituito. **Costi:** Map GL JS include 50.000 caricamenti al mese, poi a pagamento; non esiste un kill switch lato client, quindi conviene impostare un avviso di consumo dal pannello Mapbox.
 
 ---
 
@@ -63,3 +67,38 @@ Lo stesso distributore fisico può comparire con due `idImpianto` (cambio gestor
 
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
+
+---
+
+## Emersi in Milestone 2 (Risultati & Mappa)
+
+### 12. «Sul percorso»: che ordinamento è? (interpretazione provvisoria)
+Il PRD elenca «Sul percorso» tra gli ordinamenti senza definirlo. **Provvisorio:** distanza laterale dal tracciato crescente (le stazioni più «sulla strada»), a parità decide il risparmio. Alternativa: ordine di percorrenza (dalla prima che incontri alla più lontana da casa). Nota: il mockup mostra «Miglior tempo» al posto di «Sul percorso»; ho seguito PRD e DESIGN.md. Quale preferisci?
+
+### 13. «Autostrada & Extraurbane»: l'etichetta promette più di quanto il dato consenta
+`Tipo Impianto` vale solo `Stradale` o `Autostradale`: non esiste un attributo «extraurbana». **Provvisorio:** la pill, con l'etichetta richiesta, mostra solo gli impianti `Autostradale` (~540). **Raccomando** di rinominarla «Autostrada» per non promettere ciò che non possiamo filtrare. Confermi?
+
+### 14. «Solo Self» come filtro sui risultati già caricati
+Il filtro lavora sui risultati ricevuti, senza nuova chiamata. Se la ricerca era già «Solo Self» (default) la pill è attiva e **bloccata**: non ci sono stazioni solo servito da mostrare. Per vedere anche i servito bisogna rifare la ricerca da «Cerca» con l'interruttore spento. Va bene, o vuoi che la pill rilanci la ricerca? (collegato al punto 6)
+
+### 15. Definizione di «Migliore»
+**Provvisorio:** la stazione con il maggior risparmio netto tra quelle visibili con i filtri attivi, indipendentemente dall'ordinamento scelto, e solo se il risparmio è positivo. Con «Minor deviazione» la card «Migliore» può quindi non essere la prima.
+
+### 16. Difformità tra `DESIGN.md`, PRD e mockup: cosa ho scelto
+- **Chip inattivi:** le Rendering Rules (che prevalgono) dicono `bg-surface-container-low` senza bordo; la sezione Components dice bordo `outline-variant`. Ho seguito le Rendering Rules, anche per le pill secondarie (attive `bg-primary`, non il tono chiaro del mockup).
+- **Raggio del foglio:** `rounded-t-3xl` (Rendering Rules e tua richiesta), non `rounded-xl` come scritto nella prosa e nel mockup.
+- **Rimossi perché non derivabili dai dati:** «Aperto ora», riferimento «Uscita A1», pulsante traffico e link «Note legali». Il badge ambra «ritardo» resta non implementato (punto 2).
+- **Barra di navigazione:** solo «Cerca» e «Risultati». «Percorso» (Screen 4) è sospesa e «Impostazioni» (Screen 5) arriva in M4.
+- **Info:** il dettaglio stazione è Screen 3 (M3). Per ora «Info» apre solo il menu «Apri in navigatore» (Google Maps, Apple Maps, Waze) con prezzo e risparmio; «Naviga» apre direttamente Apple Maps su iOS e Google Maps su Android, il menu altrove.
+
+### 17. Contrasto WCAG del verde e dell'azzurro di brand
+Lighthouse segnala `color-contrast`: `#059669` su bianco = 3,76:1 e `#0284C7` su tinta chiara = 3,6:1, sotto i 4,5:1 richiesti per il testo piccolo (AA). Sono i colori mandatori di `DESIGN.md`, quindi non li ho toccati. Opzioni: **(a)** accettare (i testi grandi/bold passano); **(b)** per il testo piccolo usare `on-primary-fixed-variant` (#005137) su tinta chiara, mantenendo `#059669` per i riempimenti; **(c)** scurire il primario. **Raccomando (b)**: decisione di design, tua.
+
+### 18. Contratto API: aggiunto `route.geometry` alla risposta di `POST /search`
+Per disegnare il percorso la mappa ha bisogno del tracciato, che la risposta non conteneva. Ho aggiunto **solo** il campo `route.geometry` (tracciato semplificato ~50 m, coordinate a 5 decimali, ~1–2 punti per km): è additivo e non tocca la logica di ricerca. L'alternativa (chiamare Directions dal browser) avrebbe raddoppiato i costi e aggirato il kill switch. Da confermare, visto che chiedevi di non modificare il backend di M1.
+
+### 19. Ricerca a schede: prime 20 e «Mostra altre»
+L'elenco mostra le prime 20 schede (mappa e filtri lavorano su tutte le stazioni, fino a 50) per contenere il costo di rendering sui telefoni. Toccando sulla mappa un pin oltre la ventesima l'elenco si estende fino a quella stazione.
+
+### 20. Hosting: le rotte dell'app (`/results`) richiedono un rewrite
+La navigazione usa rotte vere (`/`, `/results`). In produzione Vercel deve reindirizzare ogni percorso a `index.html` (rewrite SPA). Da configurare in M5/M6; in sviluppo e con `vite preview` funziona già.

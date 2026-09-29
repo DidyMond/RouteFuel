@@ -4,7 +4,7 @@ Webapp (PWA) che trova il distributore di carburante più conveniente **lungo** 
 
 Documentazione di prodotto e architettura: [`docs/PRD.md`](docs/PRD.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/STACK_DECISION.md`](docs/STACK_DECISION.md), [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). Design system: [`DESIGN.md`](DESIGN.md).
 
-Stato attuale: **Milestone 1 — Ricerca A→B e calcolo core** (branch `feat/milestone-1-search`, in revisione). Ricerca reale con autocomplete degli indirizzi, prezzi in tempo reale dal sito ufficiale Osservaprezzi, ranking per risparmio netto e verifica della deviazione col routing reale; mappa e bottom sheet arriveranno in Milestone 2.
+Stato attuale: **Milestone 2 — Risultati & Mappa** (branch `feat/milestone-2-results-map`, in revisione; la Milestone 1 è in `main`). Ricerca A→B con prezzi in tempo reale, poi schermata Risultati con mappa Mapbox, percorso, pin dei prezzi e bottom sheet con ordinamento, filtri e navigazione esterna. Dettaglio stazione e impostazioni arriveranno nelle Milestone 3 e 4.
 
 ## Struttura del repository
 
@@ -28,6 +28,7 @@ assets/    Logo ufficiale
 - pnpm ≥ 9 (consigliato 12)
 - Docker Desktop (per PostgreSQL + PostGIS in locale)
 - Facoltativo: un token Mapbox lato server (senza, l'API usa geocoding "fixture" e routing "mock", vedi sotto)
+- Facoltativo: un token Mapbox **pubblico** per il browser, per vedere la mappa (senza, la schermata Risultati mostra solo l'elenco)
 
 ## Setup locale — passo per passo
 
@@ -65,7 +66,15 @@ assets/    Logo ufficiale
 
    L'ingestione è idempotente. In alternativa, con l'API in esecuzione: `POST http://localhost:3001/ingest`.
 
-6. **Avviare backend e frontend** (in due terminali separati):
+6. **Token della mappa (facoltativo)**: crea su account.mapbox.com un token pubblico `routefuel-web` con restrizione URL `http://localhost:5173/`, poi crea `apps/web/.env` (ignorato da git):
+
+   ```bash
+   VITE_MAPBOX_PUBLIC_TOKEN=pk.il_tuo_token_pubblico
+   ```
+
+   Vite legge il file solo all'avvio: riavvia `pnpm dev:web` dopo averlo creato o modificato. Non usare il token del server nel browser. Dettagli e costi in `docs/OPEN_QUESTIONS.md` (punto A).
+
+7. **Avviare backend e frontend** (in due terminali separati):
 
    ```bash
    pnpm dev:api
@@ -80,7 +89,7 @@ assets/    Logo ufficiale
 
 ## Provare la ricerca
 
-**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola.
+**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione / Sul percorso) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla, **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
 
 **Dalla riga di comando** (PowerShell), esempio Milano Centrale → Bologna Centrale:
 
@@ -108,7 +117,8 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 120 test di `packages/core` + 159 test di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) | niente: zero rete, zero database |
+| `pnpm test` | 120 test di `packages/core` + 159 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 75 di `apps/web` | niente: zero rete, zero database |
+| `pnpm --filter @routefuel/web test` | Solo i 75 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 
@@ -119,6 +129,7 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 - **Docker Desktop su Windows non parte**: servono BIOS con virtualizzazione attiva e le funzionalità Windows "Sottosistema Windows per Linux" e "Piattaforma macchina virtuale" (poi riavvio). Se compare `wsl-keepalive failed to start`, vedi i log in `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`.
 - **Autocomplete con "Suggerimenti non disponibili"**: quasi sempre CORS (stai usando `127.0.0.1` invece di `localhost`) oppure l'API non è avviata.
 - **`429 RATE_LIMITED`**: hai superato 20 ricerche/minuto (o 120 richieste di geocoding/minuto) dallo stesso IP; i limiti si cambiano in `apps/api/.env`.
+- **La schermata Risultati mostra «Mappa non disponibile»**: manca `VITE_MAPBOX_PUBLIC_TOKEN` in `apps/web/.env` (o non hai riavviato `pnpm dev:web`), oppure il token non è autorizzato per `http://localhost:5173/` (restrizione URL). L'elenco funziona comunque.
 - **Nei risultati compare «Prezzi in tempo reale non raggiungibili» o «su N zone su M»**: il sito ufficiale non ha risposto, ha risposto `429` (troppe richieste: l'API fa una pausa automatica di ~1 minuto) oppure il percorso è molto lungo (tetto di 40 riquadri per ricerca). Riprova dopo qualche minuto: i riquadri già scaricati restano in cache.
 - **Un prezzo sembra assurdo (es. 1,000 €/L)**: di solito è un segnaposto inserito dal gestore. Benzina e gasolio sotto 1,2 €/L vengono scartati e il prodotto base ha la precedenza sulle varianti premium; se ne trovi altri, segnalali.
 - **`503 BUDGET_EXHAUSTED`**: il contatore mensile delle chiamate Directions ha raggiunto `DIRECTIONS_HARD_LIMIT`. Il contatore è nella tabella `api_usage`.
