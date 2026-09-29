@@ -6,7 +6,20 @@ export type SearchState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; error: ApiError }
-  | { status: "success"; response: SearchResponse; results: StationResult[]; refinement: RefinementInfo };
+  | {
+      status: "success";
+      response: SearchResponse;
+      results: StationResult[];
+      refinement: RefinementInfo;
+      /** Richiesta e nomi dei luoghi con cui è stata fatta la ricerca (servono alla schermata Risultati). */
+      request: SearchRequest;
+      labels: SearchLabels;
+    };
+
+export interface SearchLabels {
+  origin: string;
+  destination: string;
+}
 
 const POLL_INTERVAL_MS = 800;
 const POLL_MAX_ATTEMPTS = 25; // ~20 s: oltre, si tengono le stime proxy già mostrate
@@ -28,7 +41,7 @@ export function useSearch() {
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  const search = useCallback(async (request: SearchRequest) => {
+  const search = useCallback(async (request: SearchRequest, labels: SearchLabels) => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -42,7 +55,7 @@ export function useSearch() {
       return;
     }
 
-    setState({ status: "success", response, results: response.results, refinement: response.refinement });
+    setState({ status: "success", response, results: response.results, refinement: response.refinement, request, labels });
     if (response.refinement.status !== "pending") return;
 
     for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
@@ -53,16 +66,16 @@ export function useSearch() {
         });
         const update = await fetchRefinement(response.searchId, controller.signal);
         if (update.refinement.status === "pending") continue;
-        setState({ status: "success", response, results: update.results, refinement: update.refinement });
+        setState({ status: "success", response, results: update.results, refinement: update.refinement, request, labels });
         return;
       } catch (error) {
         if (isAbort(error)) return;
         // Sessione scaduta o errore di rete: si conservano le stime già mostrate.
-        setState({ status: "success", response, results: response.results, refinement: { status: "failed", reason: "routing_error" } });
+        setState({ status: "success", response, results: response.results, refinement: { status: "failed", reason: "routing_error" }, request, labels });
         return;
       }
     }
-    setState({ status: "success", response, results: response.results, refinement: { status: "failed", reason: "routing_error" } });
+    setState({ status: "success", response, results: response.results, refinement: { status: "failed", reason: "routing_error" }, request, labels });
   }, []);
 
   return { state, search };

@@ -23,7 +23,7 @@ export function Header() {
         <div className="flex items-center z-10">
           <button
             type="button"
-            aria-label="Profilo utente"
+            aria-label="RF, profilo utente"
             className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-sm active:scale-95 transition-transform"
           >
             <span className="text-on-primary text-sm font-semibold">RF</span>
