@@ -109,7 +109,7 @@ Branch: `feat/milestone-2-results-map`.
 
 **Contenuto (come implementato):**
 - **Mappa Mapbox GL JS** (`light-v11`), caricata in modo lazy (chunk separato: la Home resta leggera) e scaricata in anticipo mentre il server cerca. Token pubblico da `apps/web/.env` (`VITE_MAPBOX_PUBLIC_TOKEN`, mai committato); senza token o con token non valido compare «Mappa non disponibile» e resta l'elenco. Percorso come polyline `secondary` (#0284C7) con alone e tratteggio direzionale; partenza e arrivo; controlli zoom e «ricentra». Pin con il prezzo: **verde con «verificato» per la «Migliore»**, neutro per le altre, evidenza sulla selezionata; **anti-sovrapposizione** (`pickVisibleMarkers`: resta un solo pin per gruppo di vicini, i pin compaiono zoomando) e creazione dei soli pin visibili. Capsula in alto con tratta, km, durata e numero di stazioni.
-- **Bottom sheet** (`rounded-t-3xl`, mappa al 40% dell'altezza, scorrimento solo nel foglio; maniglia per espandere/ridurre; su schermi larghi diventa barra laterale da 440 px sopra la mappa): ordinamento **Più conveniente / Minor deviazione / Sul percorso** e pill **Solo Self / Autostrada & Extraurbane**, tutti **client-side, senza chiamate di rete**. Card: avatar con iniziali da `Bandiera`, nome e indirizzo, badge «Migliore», prezzo grande con cifre tabulari e «Benzina Self», deviazione (`~` se stima), risparmio, «Solo servito», **Info** e **Naviga**. Prezzo di riferimento con il livello di `P_avg`. Banner in fondo con fonte MIMIT, data del file giornaliero e stato dei prezzi in tempo reale (`live` / `partial` / `unavailable` / `disabled`). Prime 20 schede + «Mostra altre».
+- **Bottom sheet** (`rounded-t-3xl`, mappa al 40% dell'altezza, scorrimento solo nel foglio; maniglia per espandere/ridurre; su schermi larghi diventa barra laterale da 440 px sopra la mappa): ordinamento **Più conveniente / Minor deviazione / Sul percorso** (quest'ultimo per **ordine di percorrenza**, logica e test in `packages/core`) e pill **Solo Self / Autostrada**, tutti **client-side, senza chiamate di rete**. Card: avatar con iniziali da `Bandiera`, nome e indirizzo, badge «Migliore», prezzo grande con cifre tabulari e «Benzina Self», deviazione (`~` se stima), risparmio, «Solo servito», **Info** e **Naviga**. Prezzo di riferimento con il livello di `P_avg`. Banner in fondo con fonte MIMIT, data del file giornaliero e stato dei prezzi in tempo reale (`live` / `partial` / `unavailable` / `disabled`). Prime 20 schede + «Mostra altre».
 - **Deep-link navigatore** (`lib/navigation`): iOS → Apple Maps, Android → Google Maps, altrove menu con Google Maps, Apple Maps e Waze (anche da «Info»). Nessun Screen 3.
 - **Navigazione**: rotte `/` e `/results` (react-router), barra inferiore «Cerca / Risultati» come da `DESIGN.md`; la Home resta montata così il form conserva i valori.
 - **Backend:** unica modifica additiva, `route.geometry` nella risposta di `POST /search` (→ `OPEN_QUESTIONS.md`, punto 18). Logica di ricerca invariata.
@@ -118,19 +118,20 @@ Branch: `feat/milestone-2-results-map`.
 **Criteri di accettazione:**
 - [x] Mappa mostra percorso e marker: verificato nel browser su Milano→Bologna con dati e Mapbox reali (216 km, 48 stazioni, «Migliore» in verde, pin non sovrapposti).
 - [x] Cambiare filtro di ordinamento riordina la lista senza nuova chiamata rete: verificato nel browser (0 richieste alle API dopo tre cambi di ordinamento) e con test.
-- [x] Il filtro «Autostrada & Extraurbane» filtra per `Tipo Impianto` (Milano→Bologna: 5 stazioni autostradali).
+- [x] Il filtro «Autostrada» (ex «Autostrada & Extraurbane») filtra per `Tipo Impianto` (Milano→Bologna: 5 stazioni autostradali).
 - [x] Bottom sheet scorrevole indipendentemente dalla mappa: verificato (con lo scroll del foglio la mappa non si muove, `scrollY` della pagina = 0).
 - [x] Timestamp del file MIMIT e stato dei prezzi live sempre visibili nel banner.
 - [x] Nessun errore in console (flusso completo Home → ricerca → Risultati con Chrome).
 - [~] **Lighthouse (mobile, throttling simulato):** Home **99** (misura singola) / **91** (dentro il flusso); accessibilità Risultati 92, best practices 100. La ricerca con apertura dei Risultati (timespan) segna **76–79**, poco sotto 80: il costo è dominato da Mapbox GL (chunk da 533 kB gzip) e dal WebGL in software di Chrome headless; TBT 440–500 ms con CPU rallentata 4×. Ottimizzazioni fatte: chunk lazy con prefetch, solo i pin visibili, 20 schede iniziali. Non è misurabile con una navigazione classica perché `/results` richiede lo stato di una ricerca.
-- [x] Test: 75 test del web (ordinamento e filtri, deep-link, anti-sovrapposizione, rendering di schermata e card, banner, foglio Info, rotte); niente e2e.
+- [x] Test: 79 test del web (ordinamento e filtri, deep-link, anti-sovrapposizione, rendering di schermata e card, banner, foglio Info, rotte); niente e2e.
 
 **Decisioni e affinamenti emersi in implementazione** (le interpretazioni provvisorie sono in `OPEN_QUESTIONS.md`, punti 12–20):
 1. `vite-plugin-env` non serve: Vite espone già le variabili `VITE_*`.
 2. Il CSS di Mapbox imposta `position: relative` sul contenitore e vinceva sulla classe `absolute` di Tailwind (mappa alta 0 px): il contenitore usa `w-full h-full`.
 3. Il foglio «Apri in navigatore» è un portale su `body`: dentro il contenitore fisso restava sotto la barra di navigazione.
 4. `index.html`: rimosso `user-scalable=no` (blocca lo zoom, segnalato da Lighthouse); etichetta accessibile del pulsante profilo allineata al testo visibile.
-5. Contrasto WCAG del verde/azzurro di brand sotto AA sul testo piccolo: non modificato, decisione di design (punto 17).
+5. **Contrasto WCAG (revisione):** il testo piccolo (<14px) su sfondo chiaro usa `text-on-primary-fixed-variant` invece di `text-primary`; regola aggiunta a `DESIGN.md`. Restano testo a 14px, bianco su `bg-primary` e azzurro `secondary` (→ `OPEN_QUESTIONS.md`, punto 21).
+6. **Revisione di M2:** «Sul percorso» per ordine di percorrenza (era distanza laterale), pill rinominata «Autostrada»; nuove decisioni su input e colori confermate (punti 1 e 2).
 
 ---
 ## Milestone 3 — Screen 3: Dettaglio Stazione

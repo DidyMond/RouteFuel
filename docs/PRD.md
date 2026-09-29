@@ -84,7 +84,7 @@ Il prodotto consiste di 5 screen mobile dedicati, supportati da un design system
   - Capsula telemetria live (distanza percorso, durata totale, stazioni trovate).
 - **Bottom sheet scorrevole interattivo**:
   - Filtri di ordinamento rapidi: *Più conveniente*, *Minor deviazione*, *Sul percorso*.
-  - Pill filtri secondari: *Solo Self*, *Aperto ora*, *Autostrada & Extraurbane*.
+  - Pill filtri secondari: *Solo Self*, *Aperto ora*, *Autostrada*.
   - Card stazioni classificate con:
     - Avatar brand stazione, nome, riferimento uscita e badge "Migliore".
     - Prezzo per litro prominente con cifre tabulari (`font-variant-numeric: tabular-nums`).

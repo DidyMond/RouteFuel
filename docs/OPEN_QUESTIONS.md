@@ -1,5 +1,7 @@
 # Open Questions — dopo la Milestone 2
 
+> **Risolti con la revisione di M2 (29/09/2026):** punti **1**, **2**, **12**, **13**, **17** (dettaglio nei singoli punti). In attesa risposta ministero: **7** · rinviato: **9**.
+
 > Milestone 1 **confermata e integrata in `main`** (29/09/2026). Stato dei punti: **7** in attesa risposta ministero · **9** rinviato · gli altri restano aperti con la raccomandazione indicata (procedo con quella se non indichi diversamente).
 
 Le decisioni della checklist pre-M0 (stack, mapping carburanti, cascata `P_avg`, `C_km`, semantica della deviazione, strategia ibrida, Self/Servito, default, rimozione dei dati non disponibili) sono **confermate** e implementate: il dettaglio è in `PLAN.md`. Il repository GitHub è configurato (`origin`).
@@ -21,10 +23,14 @@ Senza token l'app funziona lo stesso: la mappa mostra «Mappa non disponibile» 
 
 ## Da decidere
 
-### 1. Contraddizione in `DESIGN.md`: stile dei campi di input
+### 1. Contraddizione in `DESIGN.md`: stile dei campi di input — ✅ RISOLTO (Rendering Rules confermate)
+> **Decisione:** si seguono le Rendering Rules (raggio 1rem, `bg-surface-container-low`, altezza 44 px), come già implementato.
+
 La prosa (§ Input Fields) dice altezza 44 px, sfondo `#F1F5F9`, raggio `0.75rem`; le *Rendering Rules* (che dichiarano di prevalere) dicono che gli input sono `rounded-DEFAULT` (1rem), e `#F1F5F9` non è un token. **Ho applicato le Rendering Rules:** 44 px, `bg-surface-container-low`, raggio 1rem. Confermi?
 
-### 2. `DESIGN.md`: colori citati solo nella prosa, non tra i token
+### 2. `DESIGN.md`: colori citati solo nella prosa, non tra i token — ✅ RISOLTO (mappatura confermata, nessun nuovo colore)
+> **Decisione:** i colori della prosa (ambra, corallo, tinte dei badge) si mappano sui token esistenti; **non si aggiungono nuovi colori**. Il badge ambra «ritardo» resta non implementato.
+
 Il vincolo è usare *esclusivamente* i token. La prosa cita ambra `#F59E0B` (avviso "deviazione > 5 min"), corallo `#EF4444` e le tinte dei badge (`#ECFDF5`, `#F0F9FF`, `#FFFBEB`), che non sono token. **Ho mappato sui token:** risparmio `bg-primary/10 text-primary`, deviazione `bg-secondary/10 text-secondary`, "non conviene" `error-container`. Il badge ambra "ritardo" non è implementato. Confermi la mappatura, oppure vuoi aggiungere ai token l'ambra e il corallo?
 
 ### 3. Il proxy sottostima: verificare più di 5 stazioni?
@@ -72,10 +78,14 @@ Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (no
 
 ## Emersi in Milestone 2 (Risultati & Mappa)
 
-### 12. «Sul percorso»: che ordinamento è? (interpretazione provvisoria)
+### 12. «Sul percorso»: che ordinamento è? — ✅ RISOLTO (ordine di percorrenza)
+> **Decisione:** «Sul percorso» ordina per **ordine di percorrenza**: la stazione che si incontra per prima partendo da A viene mostrata prima (`alongRouteKm` crescente; a pari posizione, prima la più vicina alla strada, poi la più conveniente). Logica in `packages/core` (`sortResults`), con test su tracciato lineare, a «U» e con verso invertito. Il testo qui sotto è la domanda originale.
+
 Il PRD elenca «Sul percorso» tra gli ordinamenti senza definirlo. **Provvisorio:** distanza laterale dal tracciato crescente (le stazioni più «sulla strada»), a parità decide il risparmio. Alternativa: ordine di percorrenza (dalla prima che incontri alla più lontana da casa). Nota: il mockup mostra «Miglior tempo» al posto di «Sul percorso»; ho seguito PRD e DESIGN.md. Quale preferisci?
 
-### 13. «Autostrada & Extraurbane»: l'etichetta promette più di quanto il dato consenta
+### 13. «Autostrada & Extraurbane»: l'etichetta promette più di quanto il dato consenta — ✅ RISOLTO (rinominata «Autostrada»)
+> **Decisione:** la pill si chiama **«Autostrada»** e filtra per `Tipo Impianto = Autostradale`. Aggiornati label, test, PRD e documentazione. Il testo qui sotto è la domanda originale.
+
 `Tipo Impianto` vale solo `Stradale` o `Autostradale`: non esiste un attributo «extraurbana». **Provvisorio:** la pill, con l'etichetta richiesta, mostra solo gli impianti `Autostradale` (~540). **Raccomando** di rinominarla «Autostrada» per non promettere ciò che non possiamo filtrare. Confermi?
 
 ### 14. «Solo Self» come filtro sui risultati già caricati
@@ -91,7 +101,9 @@ Il filtro lavora sui risultati ricevuti, senza nuova chiamata. Se la ricerca era
 - **Barra di navigazione:** solo «Cerca» e «Risultati». «Percorso» (Screen 4) è sospesa e «Impostazioni» (Screen 5) arriva in M4.
 - **Info:** il dettaglio stazione è Screen 3 (M3). Per ora «Info» apre solo il menu «Apri in navigatore» (Google Maps, Apple Maps, Waze) con prezzo e risparmio; «Naviga» apre direttamente Apple Maps su iOS e Google Maps su Android, il menu altrove.
 
-### 17. Contrasto WCAG del verde e dell'azzurro di brand
+### 17. Contrasto WCAG del verde e dell'azzurro di brand — ✅ RISOLTO per il verde (opzione b); azzurro e 14px in 21
+> **Decisione:** opzione **(b)**. Regola aggiunta a `DESIGN.md` (Rendering Rules → Colors): testo piccolo (<14px) su sfondo chiaro in `text-on-primary-fixed-variant` (#005137) al posto di `text-primary`; fill e contenitori restano `bg-primary`. Applicata a tutti i testi piccoli del web (risparmio nelle card, conteggio nella capsula, etichetta attiva della barra, «Ripristina», risparmio nel foglio Info), con un test che vieta `text-primary` sotto i 14px.
+
 Lighthouse segnala `color-contrast`: `#059669` su bianco = 3,76:1 e `#0284C7` su tinta chiara = 3,6:1, sotto i 4,5:1 richiesti per il testo piccolo (AA). Sono i colori mandatori di `DESIGN.md`, quindi non li ho toccati. Opzioni: **(a)** accettare (i testi grandi/bold passano); **(b)** per il testo piccolo usare `on-primary-fixed-variant` (#005137) su tinta chiara, mantenendo `#059669` per i riempimenti; **(c)** scurire il primario. **Raccomando (b)**: decisione di design, tua.
 
 ### 18. Contratto API: aggiunto `route.geometry` alla risposta di `POST /search`
@@ -102,3 +114,11 @@ L'elenco mostra le prime 20 schede (mappa e filtri lavorano su tutte le stazioni
 
 ### 20. Hosting: le rotte dell'app (`/results`) richiedono un rewrite
 La navigazione usa rotte vere (`/`, `/results`). In produzione Vercel deve reindirizzare ogni percorso a `index.html` (rewrite SPA). Da configurare in M5/M6; in sviluppo e con `vite preview` funziona già.
+
+### 21. Contrasto residuo: testo a 14px e azzurro `secondary`
+La regola confermata riguarda il testo **sotto i 14px** e il verde. Restano fuori, e Lighthouse potrebbe ancora segnalarli:
+- **testo a esattamente 14px** in `text-primary` su tinta chiara: numero litri nello stepper, iniziali dell'avatar del brand, pulsante «Naviga» non evidenziato (`label-lg`);
+- **testo bianco sul riempimento `bg-primary`** (chip attivi, badge «Migliore», pin verde): 3,76:1 su testo di 11–14px, ma la regola lascia i fill invariati;
+- **azzurro `secondary` (#0284C7) su tinta chiara** (pill di deviazione, slider «Deviazione massima»): ~3,6:1 su testo piccolo.
+- **`text-outline` (#6d7a72) su bianco**: 4,49:1, a un soffio dai 4,5:1 (riga indirizzo e etichetta «Benzina Self» nelle card); basterebbe `text-on-surface-variant`.
+**Raccomando** di estendere la regola a «≤14px» e di applicare la stessa logica all'azzurro con `text-on-secondary-fixed-variant` (#004b73, già nei token). Non l'ho fatto perché la tua conferma riguardava solo il verde sotto i 14px.
