@@ -23,6 +23,14 @@ export function formatDuration(totalMinutes: number): string {
   return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
 }
 
+/** Durata compatta per la capsula sulla mappa, es. "2h 39m". */
+export function formatDurationCompact(totalMinutes: number): string {
+  const rounded = Math.round(totalMinutes);
+  const hours = Math.floor(rounded / 60);
+  const minutes = rounded % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 /** Data e ora locali, es. "28 set 2026, 21:13". */
 export function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(

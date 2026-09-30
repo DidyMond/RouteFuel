@@ -1,44 +1,10 @@
-# Open Questions — dopo la Milestone 1
+# Open Questions
 
-> Milestone 1 **confermata e integrata in `main`** (29/09/2026). Stato dei punti: **7** in attesa risposta ministero · **9** rinviato · gli altri restano aperti con la raccomandazione indicata (procedo con quella se non indichi diversamente).
-
-Le decisioni della checklist pre-M0 (stack, mapping carburanti, cascata `P_avg`, `C_km`, semantica della deviazione, strategia ibrida, Self/Servito, default, rimozione dei dati non disponibili) sono **confermate** e implementate: il dettaglio è in `PLAN.md`. Il repository GitHub è configurato (`origin`).
-
-Qui restano i dubbi emersi durante l'implementazione di M1. Per ciascuno c'è una raccomandazione: se non indichi diversamente, procedo con quella.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo due punti; tutto il resto è in «Decisioni risolte» in fondo.
 
 ---
 
-## Azione a tuo carico
-
-### A. Token Mapbox dedicato al server
-Il token di default dell'account è stato incollato in chat e non ha restrizioni: va considerato esposto. Per M1 serve **un solo token, lato server** (`MAPBOX_SERVER_TOKEN`). Raccomando di crearne uno nuovo e dedicato (istruzioni nel riepilogo di M1) e, quando arriverà la mappa in M2, di **ristringere per URL** il token di default (o sostituirlo) prima che finisca in un bundle pubblico. Non blocca i test locali.
-
----
-
-## Da decidere
-
-### 1. Contraddizione in `DESIGN.md`: stile dei campi di input
-La prosa (§ Input Fields) dice altezza 44 px, sfondo `#F1F5F9`, raggio `0.75rem`; le *Rendering Rules* (che dichiarano di prevalere) dicono che gli input sono `rounded-DEFAULT` (1rem), e `#F1F5F9` non è un token. **Ho applicato le Rendering Rules:** 44 px, `bg-surface-container-low`, raggio 1rem. Confermi?
-
-### 2. `DESIGN.md`: colori citati solo nella prosa, non tra i token
-Il vincolo è usare *esclusivamente* i token. La prosa cita ambra `#F59E0B` (avviso "deviazione > 5 min"), corallo `#EF4444` e le tinte dei badge (`#ECFDF5`, `#F0F9FF`, `#FFFBEB`), che non sono token. **Ho mappato sui token:** risparmio `bg-primary/10 text-primary`, deviazione `bg-secondary/10 text-secondary`, "non conviene" `error-container`. Il badge ambra "ritardo" non è implementato. Confermi la mappatura, oppure vuoi aggiungere ai token l'ambra e il corallo?
-
-### 3. Il proxy sottostima: verificare più di 5 stazioni?
-Sul percorso reale Milano→Bologna 3 delle prime 5 stazioni (stimate sotto i 5 km) risultavano oltre il limite col routing reale, e una stimata a 0.6 km era a 4.5 km. Dopo l'esclusione, la testa dell'elenco può quindi contenere stazioni ancora solo *stimate*. Opzioni:
-- **(a)** lasciare `REFINE_TOP_N = 5` (oggi; costo massimo 6 chiamate Directions per ricerca);
-- **(b)** *verificare finché non ci sono 5 stazioni confermate*, con un tetto (es. 10 chiamate extra): la testa dell'elenco è sempre affidabile, a costo di più chiamate (comunque ampiamente dentro il free tier alle stime attuali);
-- **(c)** alzare N a 10 fisso.
-
-**Raccomando (b)**, da rimandare a M2 (dove nasce la lista definitiva) se preferisci non toccare M1.
-
-### 4. Ricerca di luoghi ("Milano Centrale", stazioni, ospedali…)
-Il Geocoding v6 trova indirizzi, vie e località, **non i punti di interesse**: "Milano Centrale" restituisce il quartiere. Per i POI serve la Search Box API (500 sessioni/mese gratuite, poi $11.50 ogni 1.000). Opzioni: **(a)** solo indirizzi/località per l'MVP, con un suggerimento in UI ("digita via e città"); **(b)** aggiungere una piccola lista curata di grandi stazioni e aeroporti; **(c)** Search Box con limite rigido di sessioni. **Raccomando (a)**, riconsiderando (b) se emerge dall'uso.
-
-### 5. Geocoding tramite il backend (scelta di M1)
-Per rispettare la struttura richiesta (provider in `apps/api`) l'autocomplete passa dal nostro server, che vede il testo digitato ma non lo registra (test dedicato, rate limit). L'alternativa originaria era browser→Mapbox diretto con token ristretto per URL. **Raccomando di mantenere il proxy** finché non serve il token del browser (M2), poi rivalutare. Confermi?
-
-### 6. Posizione del toggle "Solo Self"
-Il PRD lo colloca tra le pill di Screen 2; in M1 non c'è ancora Screen 2 e la ricerca ne ha bisogno, quindi sta nel form della Home. Lo sposto in Screen 2 (come filtro che riesegue la ricerca) o lo lascio anche in Home?
+## Aperti
 
 ### 7. Fonte dei prezzi in tempo reale: non è un'API pubblica — ⏳ IN ATTESA RISPOSTA MINISTERO
 > **Decisione (29/09/2026):** la mail a `osservaprezzi@mise.gov.it` la invia il product owner. Nel frattempo la fonte live resta **best effort** con fallback dichiarato al CSV. Nessuna estensione del carico sul ministero (niente warming job, vedi punto 9) finché non c'è l'ok formale.
@@ -50,16 +16,34 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 
 **Raccomando** di scrivere a `osservaprezzi@mise.gov.it` (contatto indicato nella descrizione dell'API) per chiedere l'autorizzazione all'uso o un accesso ufficiale in blocco, **prima del lancio pubblico**. Per sviluppo locale e test non è bloccante. Decisioni per te: (a) confermi la fonte live con queste tutele; (b) vuoi che ti prepari una bozza della richiesta al ministero?
 
-### 8. Prezzi anomali residui
-Ho corretto i segnaposto evidenti (1.000 €/L su prodotti premium: il prodotto base ha ora la precedenza e benzina/gasolio sotto 1.2 €/L sono scartati). Restano casi dubbi ma non impossibili, es. gasolio servito a 1.379 €/L (mediana 2.50). Un controllo *relativo* (scartare i prezzi molto lontani dalla mediana locale) è possibile ma è una scelta di prodotto: rischia di nascondere offerte vere. Non implemento nulla senza tua indicazione.
-
-### 9. Prezzi in tempo reale: copertura a freddo e pre-riscaldamento — ⏸ RINVIATO (post-autorizzazione / Milestone 6)
-> **Decisione (29/09/2026):** non implementare il warming job finché non arriva l'autorizzazione formale del ministero (punto 7). Da riprendere in Milestone 6 (hardening) se l'autorizzazione arriva.
-
-La prima ricerca in una zona nuova richiede molte chiamate (Milano→Bologna: 37 riquadri, ~9 s a freddo, poi 1.2 s). Con il tetto di 10 s la ricerca risponde comunque, dichiarando «prezzi in tempo reale su N zone su M». Un job che ri-scaldi ogni ora i riquadri più richiesti (o le grandi aree urbane) risolverebbe il problema per la maggior parte delle ricerche, ma aumenta il carico sul ministero: da valutare *dopo* la risposta al punto 7.
-
-### 10. Impianti duplicati nell'anagrafica MIMIT
-Lo stesso distributore fisico può comparire con due `idImpianto` (cambio gestore): es. 57265 «01858 ENI» (AUTOSERVICE SAS, nessun prezzo) e 62820 «1858 BREGNANO» (ENIMOOV, con prezzi), stesso indirizzo. Le stazioni senza prezzi non compaiono nei risultati, quindi oggi non c'è impatto; se in futuro due duplicati avessero entrambi prezzi vedresti due card sullo stesso punto. Nessuna azione in M1; da rivalutare se emergono casi reali.
-
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
+
+---
+
+## Decisioni risolte
+
+- **A. Token Mapbox pubblico per il browser** — chiuso (token `routefuel-web` creato). In checklist M5/M6: restrizione URL sul dominio di produzione e avviso di spesa nel pannello Mapbox.
+- **1. Stile dei campi di input** — seguono le Rendering Rules di `DESIGN.md` (raggio 1rem, `bg-surface-container-low`, altezza 44 px).
+- **2. Colori citati solo nella prosa di `DESIGN.md`** — mappati sui token esistenti, nessun nuovo colore; il badge ambra «ritardo» non è implementato.
+- **3. Il proxy sottostima** — opzione **(b)**: verifica col routing reale finché la testa dell'elenco non ha 5 stazioni confermate, con tetto di 10 chiamate extra per ricerca (`REFINE_EXTRA_CALLS_CAP`); oltre il tetto restano le stime con il badge «stima». Implementato e testato.
+- **4. Ricerca di luoghi (POI)** — opzione **(a)**: solo indirizzi e località per l'MVP.
+- **5. Geocoding tramite il backend** — confermato il proxy dell'API.
+- **6. Posizione del toggle «Solo Self»** — resta come implementato (toggle nel form della Home, pill in Screen 2); si rivede in M7.
+- **8. Prezzi anomali residui** — nessun controllo relativo sulla mediana nell'MVP.
+- **9. Prezzi live: pre-riscaldamento a freddo (warming job)** — rinviato a M6, dopo l'autorizzazione formale del ministero (punto 7).
+- **10. Impianti duplicati nell'anagrafica MIMIT** — nessuna azione, si monitora.
+- **12. «Sul percorso»** — superato: il chip è stato **rimosso** da Screen 2. Restano «Più conveniente» e «Minor deviazione» (km extra verificati, proxy se manca la verifica; spareggi: distanza laterale, ordine di incontro, risparmio netto). Il terzo ordinamento «Miglior tempo» del mockup è in backlog M7.
+- **13. Etichetta «Autostrada & Extraurbane»** — la pill si chiama «Autostrada» e filtra per `Tipo Impianto = Autostradale`.
+- **14. «Solo Self» come filtro sui risultati** — resta come implementato (pill attiva e bloccata con tooltip se la ricerca era già «Solo Self»); si rivede in M7.
+- **15. Definizione di «Migliore»** — confermata: maggior risparmio netto tra le stazioni visibili, solo se positivo.
+- **16. Difformità tra `DESIGN.md`, PRD e mockup** — confermate tutte le scelte fatte.
+- **17. Contrasto WCAG del verde** — opzione **(b)**: testo piccolo in `text-on-primary-fixed-variant`, fill invariati; regola in `DESIGN.md`.
+- **18. `route.geometry` nella risposta di `POST /search`** — confermato.
+- **19. Elenco a schede (prime 20 + «Mostra altre»)** — confermato.
+- **20. Rewrite SPA su Vercel per `/results`** — rinviato a M5/M6.
+- **21. Contrasto residuo** — chiuso: regola estesa a ≤14px (verde e azzurro → varianti `on-*-fixed-variant`, `text-outline` → `text-on-surface-variant` nelle card). I due residui (bianco su `bg-primary`; placeholder `text-outline`) sono nel backlog M7.
+- **22. Deviazione verificata (diretto = percorso più veloce)** — regola confermata: km ≥ 2 × distanza laterale, minuti limitati dai km extra (causa radice e dettagli in `PLAN.md`, M2, decisione 7).
+- **23. Autostrada nel routing** — chiuso come dati (tabella in `PLAN.md`, M4). In M4: toggle «Evita autostrada» con `exclude=motorway` applicato sia al diretto sia alle verifiche; il pedaggio resta fuori da `S_net`.
+- **24. Stile mappa e lingua** — Standard `monochrome`, etichette in italiano con l'opzione `language` di Map, `VITE_MAPBOX_STYLE_URL` per sostituire lo stile; stile di brand in M7.
+- **25. Percorso con sosta: costo e limiti** — confermato (cache, una chiamata Directions per le stazioni non verificate, kill switch, 30 richieste/minuto).

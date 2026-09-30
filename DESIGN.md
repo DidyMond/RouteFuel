@@ -154,6 +154,8 @@ These rules take precedence over any inferred styling. Every generated screen MU
 - The tertiary color is ALWAYS `#0F172A` (Deep Slate). Used only for grounding typography and dark surfaces.
 - Use `primary` (#059669) for all primary CTA fills, active chip states, and positive-metric values inside tinted pills (`text-primary` on `bg-primary/10`).
 - Use `secondary` (#0284C7) for route lines, navigation icons, detour metrics.
+- Per testo piccolo (≤14px) su sfondo chiaro, usare `text-on-primary-fixed-variant` (#005137) invece di `text-primary` (#059669) per conformità WCAG AA. I fill/contenitori restano `bg-primary`.
+- Stessa regola per l'azzurro: testo piccolo (≤14px) in `secondary` su sfondo chiaro → `text-on-secondary-fixed-variant` (#004b73) invece di `text-secondary` (#0284C7). Le etichette secondarie di testo piccolo (es. indirizzo, modalità carburante) usano `text-on-surface-variant` invece di `text-outline` (4,49:1, sotto AA). Il testo bianco su `bg-primary` (chip attivi, badge «Migliore») resta accettato e tracciato in Milestone 7.
 
 ### Shapes & Radii
 - **Cards in lists** (station results, settings sections, accordion groups, waypoint nodes): ALWAYS `rounded-lg` (2rem).
@@ -262,7 +264,7 @@ The interface embraces a **pill-shaped, tactile aesthetic** reminiscent of top-t
 
 ### Chips & Route Filter Selectors
 - **Fuel Type Toggles (Benzina, Diesel, GPL, Metano, EV)**: Pill shaped, `36px` height. Inactive state: `bg-surface-container-low` with `text-on-surface-variant`. Active state: `bg-primary` with `text-on-primary` and slight elevation.
-- **Sort Filters ("Massimo Risparmio", "Minima Deviazione", "Sul Percorso")**: Horizontal scrolling pills with leading micro-icons. Active: `bg-primary text-on-primary`. Inactive: `bg-surface-container-lowest` with `border outline-variant/40`.
+- **Sort Filters ("Più conveniente", "Minor deviazione")**: Horizontal scrolling pills with leading micro-icons. Active: `bg-primary text-on-primary`. Inactive: `bg-surface-container-lowest` with `border outline-variant/40`.
 
 ### Station Recommendation Cards
 - Modular cards featuring:

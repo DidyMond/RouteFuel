@@ -1,5 +1,6 @@
 import type { LonLat, SearchFuelType, SearchRequest } from "@routefuel/shared";
 import { useState } from "react";
+import type { SearchLabels } from "../hooks/useSearch";
 import { reverseGeocode } from "../lib/api";
 import { CONSUMPTION_RANGE, DETOUR_RANGE, LITERS_RANGE, SEARCH_DEFAULTS } from "../lib/defaults";
 import { AddressInput, type Place } from "./AddressInput";
@@ -8,7 +9,7 @@ import { LocateIcon, SpinnerIcon, SwapIcon } from "./icons";
 import { Stepper } from "./Stepper";
 
 interface SearchFormProps {
-  onSubmit: (request: SearchRequest) => void;
+  onSubmit: (request: SearchRequest, labels: SearchLabels) => void;
   busy: boolean;
 }
 
@@ -78,17 +79,20 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!origin.place || !destination.place || !consumptionValid) return;
-    onSubmit({
-      origin: { lon: origin.place.lon, lat: origin.place.lat },
-      destination: { lon: destination.place.lon, lat: destination.place.lat },
-      fuelType,
-      liters,
-      maxDetourKm,
-      consumptionKmPerLiter: consumption,
-      valueOfTimePerMinute: SEARCH_DEFAULTS.valueOfTimePerMinute,
-      onlySelf,
-      maxPriceAgeHours: SEARCH_DEFAULTS.maxPriceAgeHours,
-    });
+    onSubmit(
+      {
+        origin: { lon: origin.place.lon, lat: origin.place.lat },
+        destination: { lon: destination.place.lon, lat: destination.place.lat },
+        fuelType,
+        liters,
+        maxDetourKm,
+        consumptionKmPerLiter: consumption,
+        valueOfTimePerMinute: SEARCH_DEFAULTS.valueOfTimePerMinute,
+        onlySelf,
+        maxPriceAgeHours: SEARCH_DEFAULTS.maxPriceAgeHours,
+      },
+      { origin: origin.place.label, destination: destination.place.label },
+    );
   };
 
   return (
@@ -163,7 +167,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
           <label htmlFor="max-detour" className="text-label-sm font-label-sm font-semibold text-on-surface">
             Deviazione massima
           </label>
-          <output htmlFor="max-detour" className="rounded-full bg-secondary/10 text-secondary px-space-md py-space-xs text-label-lg font-label-lg tabular-nums">
+          <output htmlFor="max-detour" className="rounded-full bg-secondary/10 text-on-secondary-fixed-variant px-space-md py-space-xs text-label-lg font-label-lg tabular-nums">
             {maxDetourKm} km
           </output>
         </div>
@@ -188,7 +192,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
               <button
                 type="button"
                 onClick={() => setConsumptionText(String(SEARCH_DEFAULTS.consumptionKmPerLiter))}
-                className="text-label-md font-label-md text-primary hover:underline"
+                className="text-label-md font-label-md text-on-primary-fixed-variant hover:underline"
               >
                 Ripristina
               </button>

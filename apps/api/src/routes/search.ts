@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { AppError } from "../errors";
-import { searchIdParamsSchema, searchRequestSchema } from "../search/schemas";
+import { searchIdParamsSchema, searchRequestSchema, stationRouteParamsSchema } from "../search/schemas";
 import type { SearchService } from "../search/SearchService";
 
 export interface SearchRouteOptions {
@@ -9,6 +9,8 @@ export interface SearchRouteOptions {
   searchRateLimitPerMinute: number;
   /** GET /search/:id: il client lo interroga a intervalli brevi finché il ricalcolo non termina. */
   pollRateLimitPerMinute?: number;
+  /** GET /search/:id/stations/:stationId/route: può costare una chiamata Directions (se non già in cache). */
+  stationRouteRateLimitPerMinute?: number;
 }
 
 export function registerSearchRoutes(app: FastifyInstance, options: SearchRouteOptions): void {
@@ -19,6 +21,15 @@ export function registerSearchRoutes(app: FastifyInstance, options: SearchRouteO
       const body = searchRequestSchema.parse(request.body);
       const response = await options.service.search(body);
       reply.code(200).send(response);
+    },
+  );
+
+  app.get(
+    "/search/:id/stations/:stationId/route",
+    { config: { rateLimit: { max: options.stationRouteRateLimitPerMinute ?? 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { id, stationId } = stationRouteParamsSchema.parse(request.params);
+      reply.code(200).send(await options.service.getStationRoute(id, stationId));
     },
   );
 

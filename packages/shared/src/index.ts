@@ -132,7 +132,12 @@ export interface RefinementInfo {
 
 export interface SearchResponse {
   searchId: string;
-  route: { distanceKm: number; durationMinutes: number };
+  route: {
+    distanceKm: number;
+    durationMinutes: number;
+    /** Tracciato semplificato (~50 m) per la mappa: coordinate [lon, lat] con 5 decimali. */
+    geometry: Array<[number, number]>;
+  };
   referencePrice: ReferencePriceInfo;
   /** Costo marginale al km (€/km) usato nel calcolo. */
   costPerKm: number;
@@ -170,6 +175,22 @@ export interface SearchRefinementResponse {
   searchId: string;
   refinement: RefinementInfo;
   results: StationResult[];
+}
+
+/**
+ * Risposta di GET /search/:id/stations/:stationId/route — il percorso A→stazione→B (route con sosta) della stazione
+ * scelta. Stessa chiamata di routing della verifica della deviazione: per le prime stazioni è già in cache.
+ */
+export interface StationRouteResponse {
+  searchId: string;
+  stationId: number;
+  distanceKm: number;
+  durationMinutes: number;
+  /** Deviazione coerente rispetto al percorso diretto (vedi computeRoutedDetour). */
+  detourKm: number;
+  detourMinutes: number;
+  /** Tracciato A→stazione→B, [lon, lat], semplificato come quello del percorso diretto. */
+  geometry: Array<[number, number]>;
 }
 
 export interface GeocodeSuggestion {

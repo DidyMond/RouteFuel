@@ -83,8 +83,8 @@ Il prodotto consiste di 5 screen mobile dedicati, supportati da un design system
   - Pin a bolla di prezzo sfalsati e non sovrapposti, con highlight smeraldo sulla stazione ottimale.
   - Capsula telemetria live (distanza percorso, durata totale, stazioni trovate).
 - **Bottom sheet scorrevole interattivo**:
-  - Filtri di ordinamento rapidi: *Più conveniente*, *Minor deviazione*, *Sul percorso*.
-  - Pill filtri secondari: *Solo Self*, *Aperto ora*, *Autostrada & Extraurbane*.
+  - Filtri di ordinamento rapidi: *Più conveniente*, *Minor deviazione* (a pari km: distanza dal tracciato, poi ordine di incontro, poi risparmio). Il terzo ordinamento «Miglior tempo» del mockup è rinviato (backlog Milestone 7).
+  - Pill filtri secondari: *Solo Self*, *Aperto ora*, *Autostrada*.
   - Card stazioni classificate con:
     - Avatar brand stazione, nome, riferimento uscita e badge "Migliore".
     - Prezzo per litro prominente con cifre tabulari (`font-variant-numeric: tabular-nums`).
