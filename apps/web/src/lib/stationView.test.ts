@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeDivergingResults, makeResult, makeResults } from "../test/fixtures";
+import { makeDivergingResults, makeResult, makeResults, makeTiedDetourResults } from "../test/fixtures";
 import { applyFilters, bestStationId, brandInitials, fuelModeLabel, shortPlaceName } from "./stationView";
 
 const ids = (results: ReturnType<typeof makeResults>) => results.map((r) => r.station.id);
@@ -14,26 +14,16 @@ describe("applyFilters — ordinamento", () => {
     expect(ids(applyFilters(makeResults(), { sort: "detour", ...noFilters }))).toEqual([2, 3, 1]);
   });
 
-  it("«Sul percorso»: prima le stazioni sulla strada (distanza laterale crescente)", () => {
-    // Distanza dal tracciato: stazione 2 a 0,1 km, 1 a 0,2 km, 3 a 0,9 km.
-    expect(ids(applyFilters(makeResults(), { sort: "on_route", ...noFilters }))).toEqual([2, 1, 3]);
+  it("«Minor deviazione»: a pari km, prima la più vicina alla strada, poi l'ordine di incontro, poi il risparmio", () => {
+    expect(ids(applyFilters(makeTiedDetourResults(), { sort: "detour", ...noFilters }))).toEqual([24, 23, 22, 21]);
+    expect(ids(applyFilters(makeTiedDetourResults(), { sort: "savings", ...noFilters }))).toEqual([24, 21, 23, 22]);
   });
 
-  it("«Sul percorso»: a pari distanza laterale vale l'ordine di incontro partendo da A", () => {
-    const same = [
-      makeResult({ station: { id: 20 }, lateralDistanceKm: 0.3, alongRouteKm: 70 }),
-      makeResult({ station: { id: 21 }, lateralDistanceKm: 0.3, alongRouteKm: 10 }),
-      makeResult({ station: { id: 22 }, lateralDistanceKm: 0.3, alongRouteKm: 40 }),
-    ];
-    expect(ids(applyFilters(same, { sort: "on_route", ...noFilters }))).toEqual([21, 22, 20]);
-  });
-
-  it("i tre ordinamenti possono divergere tutti: fixture con ordini a due a due diversi", () => {
+  it("i due ordinamenti possono divergere del tutto: fixture con ordini diversi", () => {
     const results = makeDivergingResults();
-    const byMode = (sort: "savings" | "detour" | "on_route") => ids(applyFilters(results, { sort, ...noFilters }));
+    const byMode = (sort: "savings" | "detour") => ids(applyFilters(results, { sort, ...noFilters }));
     expect(byMode("savings")).toEqual([11, 12, 13, 14]);
     expect(byMode("detour")).toEqual([12, 13, 14, 11]);
-    expect(byMode("on_route")).toEqual([13, 11, 14, 12]);
   });
 
   it("a parità di criterio decide il risparmio netto", () => {

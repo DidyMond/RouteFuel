@@ -5,7 +5,7 @@ import { useStopRoute } from "../../hooks/useStopRoute";
 import { formatPrice } from "../../lib/format";
 import { detectPlatform, primaryNavigationLink } from "../../lib/navigation";
 import { applyFilters, bestStationId, DEFAULT_SORT, fuelModeLabel, type SortMode } from "../../lib/stationView";
-import { CheckIcon, InfoIcon, MotorwayIcon, RouteIcon, SavingsIcon, SpinnerIcon } from "../icons";
+import { CheckIcon, InfoIcon, RouteIcon, SavingsIcon, SpinnerIcon } from "../icons";
 import type { MapStation } from "./MapCanvas";
 import { MapView } from "./MapView";
 import { NavigateSheet } from "./NavigateSheet";
@@ -20,8 +20,7 @@ export const INITIAL_CARDS = 20;
 
 const SORTS: ReadonlyArray<{ mode: SortMode; label: string; title: string; Icon: typeof SavingsIcon }> = [
   { mode: "savings", label: "Più conveniente", title: "Risparmio netto maggiore per prime", Icon: SavingsIcon },
-  { mode: "detour", label: "Minor deviazione", title: "Meno chilometri extra per prime", Icon: RouteIcon },
-  { mode: "on_route", label: "Sul percorso", title: "Stazioni sulla strada, in ordine di incontro", Icon: MotorwayIcon },
+  { mode: "detour", label: "Minor deviazione", title: "Meno chilometri extra per prime (a pari km, la più vicina alla strada)", Icon: RouteIcon },
 ];
 
 function Chip({

@@ -4,7 +4,7 @@ import type { SearchFuelType, StationResult } from "@routefuel/shared";
 /**
  * Ordinamento e filtri della lista risultati, tutti lato client: cambiare filtro non fa alcuna chiamata di rete.
  * La logica di ordinamento sta in `@routefuel/core` (`sortResults`, con i test): «Più conveniente» per risparmio,
- * «Minor deviazione» per km extra, «Sul percorso» per **ordine di percorrenza** (la prima stazione che si incontra da A).
+ * «Minor deviazione» per km extra (spareggi: distanza dal tracciato, ordine di incontro da A, risparmio).
  */
 export type SortMode = ResultSortMode;
 

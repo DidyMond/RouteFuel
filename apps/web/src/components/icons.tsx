@@ -121,14 +121,6 @@ export function VerifiedIcon({ className = "" }: IconProps) {
   );
 }
 
-export function MotorwayIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
-      <path d="M9 3L4 21M15 3l5 18M12 4v3m0 4v3m0 4v2" />
-    </svg>
-  );
-}
-
 export function CloseIcon({ className = "" }: IconProps) {
   return (
     <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">

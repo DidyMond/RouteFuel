@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchState } from "../../hooks/useSearch";
-import { makeDivergingResults, makeResponse, makeResult, REQUEST } from "../../test/fixtures";
+import { makeDivergingResults, makeResponse, makeResult, makeTiedDetourResults, REQUEST } from "../../test/fixtures";
 import type { MapStation } from "./MapCanvas";
 
 // Mapbox GL richiede WebGL, assente in jsdom: la mappa è sostituita da uno stub che espone le props ricevute.
@@ -142,7 +142,7 @@ describe("ResultsScreen — contenuto", () => {
 });
 
 describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () => {
-  it("«Minor deviazione» e «Sul percorso» (distanza dal tracciato) riordinano l'elenco e la mappa, senza alcuna chiamata di rete", async () => {
+  it("«Minor deviazione» riordina l'elenco e la mappa, e «Più conveniente» li ripristina, senza alcuna chiamata di rete", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
     expect(cardIds()).toEqual([1, 2, 3]);
@@ -151,14 +151,17 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(cardIds()).toEqual([2, 3, 1]);
     expect(screen.getByTestId("map-stub")).toHaveTextContent("2,3,1");
 
-    await user.click(screen.getByRole("button", { name: "Sul percorso" }));
-    expect(cardIds()).toEqual([2, 1, 3]); // distanza laterale: 0,1 · 0,2 · 0,9 km
-    expect(screen.getByTestId("map-stub")).toHaveTextContent("2,1,3");
-
     await user.click(screen.getByRole("button", { name: "Più conveniente" }));
     expect(cardIds()).toEqual([1, 2, 3]);
 
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("restano solo due ordinamenti: «Sul percorso» non c'è più", () => {
+    render(<ResultsScreen state={makeState()} />);
+    const group = screen.getByRole("group", { name: "Ordina per" });
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Più conveniente", "Minor deviazione"]);
+    expect(screen.queryByRole("button", { name: "Sul percorso" })).not.toBeInTheDocument();
   });
 
   it("il chip attivo è verde (bg-primary) e l'inattivo no; lo stato è esposto con aria-pressed", async () => {
@@ -222,36 +225,31 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(cardIds()).toEqual([5]);
   });
 
-  it("«Sul percorso» mostra per prima la stazione più vicina alla strada, e il chip spiega l'ordine", async () => {
-    const user = userEvent.setup();
-    render(<ResultsScreen state={makeState()} />);
-    const chip = screen.getByRole("button", { name: "Sul percorso" });
-    expect(chip).toHaveAttribute("title", "Stazioni sulla strada, in ordine di incontro");
-    await user.click(chip);
-    expect(cardIds()[0]).toBe(2); // la più vicina al tracciato (0,1 km)
-  });
-
-  it("tre ordinamenti che divergono per forza: ognuno riordina davvero l'elenco e la mappa, senza rete", async () => {
+  it("due ordinamenti che divergono per forza: ognuno riordina davvero l'elenco e la mappa, senza rete", async () => {
     const user = userEvent.setup();
     const results = makeDivergingResults();
     render(<ResultsScreen state={makeState({ response: makeResponse({ results }), results })} />);
-    const order = (mode: string) => user.click(screen.getByRole("button", { name: mode }));
 
     expect(screen.getByRole("button", { name: "Più conveniente" })).toHaveAttribute("aria-pressed", "true");
     expect(cardIds()).toEqual([11, 12, 13, 14]); // risparmio netto
 
-    await order("Minor deviazione");
+    await user.click(screen.getByRole("button", { name: "Minor deviazione" }));
     expect(screen.getByRole("button", { name: "Minor deviazione" })).toHaveAttribute("aria-pressed", "true");
     expect(cardIds()).toEqual([12, 13, 14, 11]); // km extra
     expect(screen.getByTestId("map-stub")).toHaveTextContent("12,13,14,11");
 
-    await order("Sul percorso");
-    expect(cardIds()).toEqual([13, 11, 14, 12]); // distanza laterale
-    expect(screen.getByTestId("map-stub")).toHaveTextContent("13,11,14,12");
-
-    await order("Più conveniente");
+    await user.click(screen.getByRole("button", { name: "Più conveniente" }));
     expect(cardIds()).toEqual([11, 12, 13, 14]);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("«Minor deviazione» a pari km spareggia per distanza laterale, ordine di incontro e risparmio", async () => {
+    const user = userEvent.setup();
+    const results = makeTiedDetourResults();
+    render(<ResultsScreen state={makeState({ response: makeResponse({ results }), results })} />);
+    expect(cardIds()).toEqual([24, 21, 23, 22]); // risparmio
+    await user.click(screen.getByRole("button", { name: "Minor deviazione" }));
+    expect(cardIds()).toEqual([24, 23, 22, 21]);
   });
 
   it("una nuova ricerca (searchId diverso) riparte da filtri puliti", async () => {

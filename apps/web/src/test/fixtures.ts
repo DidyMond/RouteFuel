@@ -84,13 +84,23 @@ export function makeResults(): StationResult[] {
 }
 
 /**
- * Quattro stazioni per cui risparmio netto, deviazione e distanza dal tracciato danno tre ordini a due a due diversi:
- * risparmio → [11, 12, 13, 14] · deviazione → [12, 13, 14, 11] · sul percorso (distanza laterale) → [13, 11, 14, 12].
+ * Quattro stazioni per cui risparmio netto e deviazione danno due ordini completamente diversi:
+ * risparmio → [11, 12, 13, 14] · deviazione → [12, 13, 14, 11].
  */
 export function makeDivergingResults(): StationResult[] {
   const at = (id: number, netSavings: number, detourKm: number, lateralDistanceKm: number, alongRouteKm: number) =>
     makeResult({ station: { id, nomeImpianto: `Stazione ${id}` }, netSavings, detourKm, lateralDistanceKm, alongRouteKm });
   return [at(11, 10, 4, 0.5, 10), at(12, 8, 1, 2.0, 40), at(13, 6, 2, 0.1, 70), at(14, 4, 3, 1.0, 25)];
+}
+
+/**
+ * Quattro stazioni con gli stessi km di deviazione: «Minor deviazione» decide con gli spareggi
+ * (distanza laterale, ordine di incontro, risparmio) → [24, 23, 22, 21]; «Più conveniente» → [24, 21, 23, 22].
+ */
+export function makeTiedDetourResults(): StationResult[] {
+  const at = (id: number, netSavings: number, lateralDistanceKm: number, alongRouteKm: number) =>
+    makeResult({ station: { id, nomeImpianto: `Stazione ${id}` }, netSavings, detourKm: 2, lateralDistanceKm, alongRouteKm });
+  return [at(21, 3, 0.5, 30), at(22, 1, 0.2, 60), at(23, 2, 0.2, 10), at(24, 9, 0.2, 10)];
 }
 
 export function makeResponse(overrides: Partial<SearchResponse> = {}): SearchResponse {

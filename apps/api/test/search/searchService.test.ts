@@ -4,7 +4,7 @@ import { AppError, BudgetExhaustedError } from "../../src/errors";
 import type { BudgetGate, BudgetStatus } from "../../src/providers/routing/DirectionsBudget";
 import { MockRoutingProvider } from "../../src/providers/routing/MockRoutingProvider";
 import type { RouteResult, RoutingProvider } from "../../src/providers/routing/RoutingProvider";
-import { RESULT_LIMIT, REFINE_TOP_N, SearchService } from "../../src/search/SearchService";
+import { RESULT_LIMIT, REFINE_EXTRA_CALLS_CAP, REFINE_TOP_N, SearchService } from "../../src/search/SearchService";
 import { type SearchSession, SearchSessionStore } from "../../src/search/SearchSessionStore";
 import { InMemoryStationRepository, row } from "../helpers/inMemoryStationRepository";
 
@@ -631,5 +631,100 @@ describe("SearchService.getStationRoute — percorso con sosta", () => {
     await service.waitForRefinement(searchId);
     await expect(service.getStationRoute(searchId, 999999)).rejects.toMatchObject({ code: "NOT_FOUND", httpStatus: 404 });
     await expect(service.getStationRoute(searchId, 5)).resolves.toBeDefined();
+  });
+});
+
+describe("SearchService — verifica finché la testa ha 5 stazioni confermate (tetto 10 chiamate extra)", () => {
+  // 30 stazioni sul percorso, tutte alla stessa distanza laterale: il ranking proxy segue il prezzo (le prime sono le più economiche; scarti di 0,02 €/L tengono stabile l'ordine dopo la verifica).
+  const many = () =>
+    Array.from({ length: 30 }, (_, i) => row({ stationId: 300 + i, lon: 9.1 + i * 0.02, lat: 45.001, price: 1.6 + i * 0.02 }));
+  const rankOf = (lon: number) => Math.round((lon - 9.1) / 0.02);
+  const viaCalls = (routing: ScriptedRouting) => routing.viaCalls;
+
+  async function scripted(excludedWhen: (rank: number) => boolean) {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    return new ScriptedRouting(async (station) =>
+      excludedWhen(rankOf(station.lon))
+        ? { distanceKm: direct!.distanceKm + 7, durationMinutes: direct!.durationMinutes + 10, geometry: [] } // oltre i 5 km: esclusa
+        : { distanceKm: direct!.distanceKm + 0.3, durationMinutes: direct!.durationMinutes + 0.5, geometry: [] },
+    );
+  }
+
+  it("se le prime 5 vengono escluse dal routing reale, verifica le 5 che entrano in testa (10 chiamate in tutto)", async () => {
+    const routing = await scripted((rank) => rank < 5);
+    const { service } = buildService(many(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+
+    const refined = service.getRefinement(first.searchId)!;
+    expect(refined.refinement).toEqual({ status: "done" });
+    expect(viaCalls(routing)).toBe(2 * REFINE_TOP_N);
+    const head = refined.results.slice(0, REFINE_TOP_N);
+    expect(head.map((r) => r.station.id)).toEqual([305, 306, 307, 308, 309]);
+    expect(head.every((r) => r.detourSource === "routing")).toBe(true);
+  });
+
+  it("non verifica oltre il necessario: se la testa è già confermata dopo il primo giro, niente chiamate extra", async () => {
+    const routing = await scripted(() => false);
+    const { service } = buildService(many(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+    expect(viaCalls(routing)).toBe(REFINE_TOP_N);
+  });
+
+  it("TETTO — al massimo REFINE_EXTRA_CALLS_CAP chiamate extra: oltre restano le stime (badge), stato done", async () => {
+    const routing = await scripted(() => true); // ogni verifica esclude la stazione: la testa non si stabilizza mai
+    const { service } = buildService(many(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+
+    const refined = service.getRefinement(first.searchId)!;
+    expect(viaCalls(routing)).toBe(REFINE_TOP_N + REFINE_EXTRA_CALLS_CAP);
+    expect(refined.refinement).toEqual({ status: "done" });
+    // Le prime 15 sono state escluse; la testa dell'elenco è fatta di stime proxy, non di verifiche.
+    expect(refined.results).toHaveLength(15);
+    expect(refined.results.slice(0, REFINE_TOP_N).every((r) => r.detourSource === "proxy")).toBe(true);
+    expect(refined.results.slice(0, REFINE_TOP_N).map((r) => r.station.id)).toEqual([315, 316, 317, 318, 319]);
+  });
+
+  it("il tetto vale anche con giri parziali (meno di 5 stazioni da verificare nell'ultimo giro)", async () => {
+    // Escluse le prime 13: 5 (primo giro) + 5 + 3 → il terzo giro verifica 5 ma il tetto ne concede solo 5 (10 − 5).
+    const routing = await scripted((rank) => rank < 13);
+    const { service } = buildService(many(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+    expect(viaCalls(routing)).toBeLessThanOrEqual(REFINE_TOP_N + REFINE_EXTRA_CALLS_CAP);
+  });
+
+  it("una stazione non verificabile (routing null) non viene riprovata né blocca il ciclo", async () => {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    const routing = new ScriptedRouting(async (station) =>
+      rankOf(station.lon) === 2
+        ? null
+        : { distanceKm: direct!.distanceKm + 0.3, durationMinutes: direct!.durationMinutes + 0.5, geometry: [] },
+    );
+    const { service } = buildService(many(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+    expect(viaCalls(routing)).toBe(REFINE_TOP_N); // la n. 2 resta stimata, le altre 4 bastano a chiudere il giro
+    const refined = service.getRefinement(first.searchId)!;
+    expect(refined.results.find((r) => r.station.id === 302)?.detourSource).toBe("proxy");
+  });
+
+  it("quota esaurita a metà: si ferma e non ritenta", async () => {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    let calls = 0;
+    const routing = new ScriptedRouting(async (station) => {
+      calls += 1;
+      if (calls > REFINE_TOP_N) throw new BudgetExhaustedError();
+      return rankOf(station.lon) < 5
+        ? { distanceKm: direct!.distanceKm + 7, durationMinutes: direct!.durationMinutes + 10, geometry: [] }
+        : { distanceKm: direct!.distanceKm + 0.3, durationMinutes: direct!.durationMinutes + 0.5, geometry: [] };
+    });
+    const { service } = buildService(many(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+    expect(calls).toBe(2 * REFINE_TOP_N); // il secondo giro parte, tutte le sue chiamate falliscono, poi il ciclo si chiude
+    expect(service.getRefinement(first.searchId)!.refinement.status).toBe("done");
   });
 });

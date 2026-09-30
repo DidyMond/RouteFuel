@@ -1,21 +1,21 @@
 import type { StationResult } from "@routefuel/shared";
 
 /**
- * Ordinamenti della lista risultati (schermata Risultati), tutti applicabili lato client sui risultati già ricevuti:
+ * Ordinamenti della lista risultati (schermata Risultati), applicabili lato client sui risultati già ricevuti:
  *
- * - `savings`  «Più conveniente»: risparmio netto decrescente.
- * - `detour`   «Minor deviazione»: km extra crescenti, a parità il risparmio maggiore.
- * - `on_route` «Sul percorso»: prima le stazioni realmente sulla strada (distanza laterale dal tracciato crescente),
- *   a pari distanza l'ordine di incontro partendo da A (`alongRouteKm` crescente), poi il risparmio maggiore.
+ * - `savings` «Più conveniente»: risparmio netto decrescente.
+ * - `detour`  «Minor deviazione»: km extra crescenti (quelli verificati col routing reale; la stima proxy se manca la
+ *   verifica), a pari km la stazione più vicina al tracciato, poi quella che si incontra per prima partendo da A
+ *   (`alongRouteKm`), infine il risparmio netto maggiore.
  */
-export type ResultSortMode = "savings" | "detour" | "on_route";
+export type ResultSortMode = "savings" | "detour";
 
 const bySavings = (a: StationResult, b: StationResult) => b.netSavings - a.netSavings;
 
 const COMPARATORS: Record<ResultSortMode, (a: StationResult, b: StationResult) => number> = {
   savings: bySavings,
-  detour: (a, b) => a.detourKm - b.detourKm || bySavings(a, b),
-  on_route: (a, b) => a.lateralDistanceKm - b.lateralDistanceKm || a.alongRouteKm - b.alongRouteKm || bySavings(a, b),
+  detour: (a, b) =>
+    a.detourKm - b.detourKm || a.lateralDistanceKm - b.lateralDistanceKm || a.alongRouteKm - b.alongRouteKm || bySavings(a, b),
 };
 
 /** Restituisce una nuova lista ordinata; l'input non viene modificato. */

@@ -39,6 +39,8 @@ export const MAX_CORRIDOR_RADIUS_KM = 15;
 export const RESULT_LIMIT = 50;
 /** Quante stazioni in testa alla classifica proxy vengono verificate con il routing reale. */
 export const REFINE_TOP_N = 5;
+/** Tetto di chiamate di routing extra, oltre il primo giro, per portare la testa dell'elenco a 5 stazioni confermate. */
+export const REFINE_EXTRA_CALLS_CAP = 10;
 
 /** Porta i prezzi del corridoio in tempo reale prima della lettura dal DB. Opzionale: senza, restano i prezzi del file giornaliero. */
 export interface LivePricesGate {
@@ -80,7 +82,8 @@ export class SearchService {
    * Fase 1 (sincrona): percorso A→B, corridoio PostGIS, prezzo di riferimento,
    * ranking con deviazione stimata (proxy geometrico). Risponde subito.
    * Fase 2 (in background): verifica con routing reale delle prime
-   * REFINE_TOP_N stazioni; il client legge l'esito con getRefinement().
+   * REFINE_TOP_N stazioni (e di quelle che le sostituiscono in testa, entro REFINE_EXTRA_CALLS_CAP chiamate extra);
+   * il client legge l'esito con getRefinement().
    */
   async search(request: SearchRequest): Promise<SearchResponse> {
     const route = await this.deps.routing.getRoute([request.origin, request.destination]);
@@ -219,61 +222,75 @@ export class SearchService {
     await this.deps.sessions.get(searchId)?.refinementPromise;
   }
 
+  /**
+   * Verifica col routing reale finché la testa dell'elenco (le prime REFINE_TOP_N stazioni) è tutta confermata:
+   * il primo giro riguarda le prime REFINE_TOP_N, poi ogni stazione ancora solo stimata che entra in testa
+   * (perché una verificata è scesa o è stata esclusa) viene verificata a sua volta, fino a REFINE_EXTRA_CALLS_CAP
+   * chiamate extra per ricerca. Oltre il tetto restano le stime, con il badge «stima» nell'interfaccia.
+   */
   private async refine(session: SearchSession): Promise<void> {
     try {
       const { request, route } = session;
       const context: ScoringContext = { request, referencePrice: session.referencePrice.value };
-      const top = session.results.slice(0, REFINE_TOP_N);
 
+      const attempted = new Set<number>(); // verificate o non verificabili: non si riprovano
+      let extraCallsLeft = REFINE_EXTRA_CALLS_CAP;
       let budgetReached = false;
       let failures = 0;
+      let verified = 0;
+      let firstRound = true;
 
-      const outcomes = await Promise.all(
-        top.map(async (result) => {
-          try {
-            const via = await this.deps.routing.getRoute([
-              request.origin,
-              { lon: result.station.lon, lat: result.station.lat },
-              request.destination,
-            ]);
-            if (!via) {
+      while (!budgetReached) {
+        let batch = session.results.slice(0, REFINE_TOP_N).filter((result) => !attempted.has(result.station.id));
+        if (!firstRound) batch = batch.slice(0, extraCallsLeft);
+        if (batch.length === 0) break;
+        if (!firstRound) extraCallsLeft -= batch.length;
+        firstRound = false;
+
+        const outcomes = await Promise.all(
+          batch.map(async (result) => {
+            attempted.add(result.station.id);
+            try {
+              const via = await this.deps.routing.getRoute([
+                request.origin,
+                { lon: result.station.lon, lat: result.station.lat },
+                request.destination,
+              ]);
+              if (!via) {
+                failures += 1;
+                return { result, detour: null };
+              }
+              return { result, detour: computeRoutedDetour(route, via, result.lateralDistanceKm) };
+            } catch (error) {
               failures += 1;
+              if (error instanceof BudgetExhaustedError) {
+                budgetReached = true;
+              } else {
+                this.deps.logger?.warn({ stationId: result.station.id }, "Verifica routing della stazione non riuscita");
+              }
               return { result, detour: null };
             }
-            return { result, detour: computeRoutedDetour(route, via, result.lateralDistanceKm) };
-          } catch (error) {
-            failures += 1;
-            if (error instanceof BudgetExhaustedError) {
-              budgetReached = true;
-            } else {
-              this.deps.logger?.warn({ stationId: result.station.id }, "Verifica routing della stazione non riuscita");
-            }
-            return { result, detour: null };
-          }
-        }),
-      );
-
-      const replacements = new Map<number, StationResult | null>(); // null = esclusa dal routing reale
-      let verified = 0;
-      for (const { result, detour } of outcomes) {
-        if (!detour) continue;
-        verified += 1;
-        // Con i dati reali la deviazione massima resta il criterio finale di esclusione.
-        replacements.set(
-          result.station.id,
-          detour.km > request.maxDetourKm ? null : rescore(result, detour, context),
+          }),
         );
+
+        const replacements = new Map<number, StationResult | null>(); // null = esclusa dal routing reale
+        for (const { result, detour } of outcomes) {
+          if (!detour) continue;
+          verified += 1;
+          // Con i dati reali la deviazione massima resta il criterio finale di esclusione.
+          replacements.set(result.station.id, detour.km > request.maxDetourKm ? null : rescore(result, detour, context));
+        }
+
+        session.results = session.results
+          .flatMap((result) => {
+            const replacement = replacements.get(result.station.id);
+            if (replacement === undefined) return [result];
+            return replacement === null ? [] : [replacement];
+          })
+          .sort(byNetSavings);
       }
 
-      session.results = session.results
-        .flatMap((result) => {
-          const replacement = replacements.get(result.station.id);
-          if (replacement === undefined) return [result];
-          return replacement === null ? [] : [replacement];
-        })
-        .sort(byNetSavings);
-
-      session.refinement = finalRefinement({ topCount: top.length, verified, failures, budgetReached });
+      session.refinement = finalRefinement({ topCount: attempted.size, verified, failures, budgetReached });
     } catch (error) {
       this.deps.logger?.warn({ error: error instanceof Error ? error.message : String(error) }, "Ricalcolo in background fallito");
       session.refinement = { status: "failed", reason: "routing_error" };
