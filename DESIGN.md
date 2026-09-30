@@ -264,7 +264,7 @@ The interface embraces a **pill-shaped, tactile aesthetic** reminiscent of top-t
 
 ### Chips & Route Filter Selectors
 - **Fuel Type Toggles (Benzina, Diesel, GPL, Metano, EV)**: Pill shaped, `36px` height. Inactive state: `bg-surface-container-low` with `text-on-surface-variant`. Active state: `bg-primary` with `text-on-primary` and slight elevation.
-- **Sort Filters ("Massimo Risparmio", "Minima Deviazione", "Sul Percorso")**: Horizontal scrolling pills with leading micro-icons. Active: `bg-primary text-on-primary`. Inactive: `bg-surface-container-lowest` with `border outline-variant/40`.
+- **Sort Filters ("Più conveniente", "Minor deviazione")**: Horizontal scrolling pills with leading micro-icons. Active: `bg-primary text-on-primary`. Inactive: `bg-surface-container-lowest` with `border outline-variant/40`.
 
 ### Station Recommendation Cards
 - Modular cards featuring:

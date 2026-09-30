@@ -4,7 +4,7 @@ Webapp (PWA) che trova il distributore di carburante più conveniente **lungo** 
 
 Documentazione di prodotto e architettura: [`docs/PRD.md`](docs/PRD.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/STACK_DECISION.md`](docs/STACK_DECISION.md), [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). Design system: [`DESIGN.md`](DESIGN.md).
 
-Stato attuale: **Milestone 2 — Risultati & Mappa** (branch `feat/milestone-2-results-map`, in revisione; la Milestone 1 è in `main`). Ricerca A→B con prezzi in tempo reale, poi schermata Risultati con mappa Mapbox, percorso, pin dei prezzi e bottom sheet con ordinamento, filtri e navigazione esterna. Dettaglio stazione e impostazioni arriveranno nelle Milestone 3 e 4.
+Stato attuale: **Milestone 2 — Risultati & Mappa** (integrata in `main`, insieme alle Milestone 0 e 1). Ricerca A→B con prezzi in tempo reale, poi schermata Risultati con mappa Mapbox, percorso, pin dei prezzi e bottom sheet con ordinamento, filtri e navigazione esterna. Dettaglio stazione e impostazioni arriveranno nelle Milestone 3 e 4.
 
 ## Struttura del repository
 
@@ -74,7 +74,7 @@ assets/    Logo ufficiale
 
    Opzionale: `VITE_MAPBOX_STYLE_URL=mapbox://styles/utente/id` sostituisce lo stile della mappa (default: Mapbox Standard, tema monocromatico, etichette in italiano) senza toccare il codice.
 
-   Vite legge il file solo all'avvio: riavvia `pnpm dev:web` dopo averlo creato o modificato. Non usare il token del server nel browser. Dettagli e costi in `docs/OPEN_QUESTIONS.md` (punto A).
+   Vite legge il file solo all'avvio: riavvia `pnpm dev:web` dopo averlo creato o modificato. Non usare il token del server nel browser. Costi: Map GL JS include 50.000 caricamenti al mese; conviene impostare un avviso di spesa nel pannello Mapbox (checklist M5/M6 in `docs/PLAN.md`).
 
 7. **Avviare backend e frontend** (in due terminali separati):
 
@@ -91,7 +91,7 @@ assets/    Logo ufficiale
 
 ## Provare la ricerca
 
-**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione / Sul percorso, cioè prima le stazioni realmente sulla strada) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla (la mappa disegna in verde il percorso A→stazione→B; un secondo tocco deseleziona), **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
+**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla (la mappa disegna in verde il percorso A→stazione→B; un secondo tocco deseleziona), **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
 
 **Dalla riga di comando** (PowerShell), esempio Milano Centrale → Bologna Centrale:
 
@@ -119,7 +119,7 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 142 test di `packages/core` + 169 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 97 di `apps/web` | niente: zero rete, zero database |
+| `pnpm test` | 139 test di `packages/core` + 175 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 97 di `apps/web` | niente: zero rete, zero database |
 | `pnpm --filter @routefuel/web test` | Solo i 97 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
