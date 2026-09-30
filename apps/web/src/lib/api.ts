@@ -7,6 +7,7 @@ import type {
   SearchRefinementResponse,
   SearchRequest,
   SearchResponse,
+  StationRouteResponse,
 } from "@routefuel/shared";
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
@@ -72,4 +73,9 @@ export function searchStations(body: SearchRequest, signal: AbortSignal): Promis
 
 export function fetchRefinement(searchId: string, signal: AbortSignal): Promise<SearchRefinementResponse> {
   return request<SearchRefinementResponse>(`/search/${searchId}`, { signal });
+}
+
+/** Percorso A→stazione→B di una stazione tra i risultati (route con sosta). Fallisce se il routing non è disponibile. */
+export function fetchStationRoute(searchId: string, stationId: number, signal: AbortSignal): Promise<StationRouteResponse> {
+  return request<StationRouteResponse>(`/search/${searchId}/stations/${stationId}/route`, { signal });
 }

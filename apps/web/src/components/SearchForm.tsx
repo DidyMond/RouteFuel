@@ -167,7 +167,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
           <label htmlFor="max-detour" className="text-label-sm font-label-sm font-semibold text-on-surface">
             Deviazione massima
           </label>
-          <output htmlFor="max-detour" className="rounded-full bg-secondary/10 text-secondary px-space-md py-space-xs text-label-lg font-label-lg tabular-nums">
+          <output htmlFor="max-detour" className="rounded-full bg-secondary/10 text-on-secondary-fixed-variant px-space-md py-space-xs text-label-lg font-label-lg tabular-nums">
             {maxDetourKm} km
           </output>
         </div>

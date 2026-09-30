@@ -1,6 +1,7 @@
 import type { ReferencePriceLevel, RefinementInfo, StationResult } from "@routefuel/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SearchState } from "../../hooks/useSearch";
+import { useStopRoute } from "../../hooks/useStopRoute";
 import { formatPrice } from "../../lib/format";
 import { detectPlatform, primaryNavigationLink } from "../../lib/navigation";
 import { applyFilters, bestStationId, DEFAULT_SORT, fuelModeLabel, type SortMode } from "../../lib/stationView";
@@ -17,10 +18,10 @@ type SuccessState = Extract<SearchState, { status: "success" }>;
 /** Schede mostrate subito: l'elenco completo resta a un tap ("Mostra altre"), la mappa e i filtri lavorano sempre su tutte. */
 export const INITIAL_CARDS = 20;
 
-const SORTS: ReadonlyArray<{ mode: SortMode; label: string; Icon: typeof SavingsIcon }> = [
-  { mode: "savings", label: "Più conveniente", Icon: SavingsIcon },
-  { mode: "detour", label: "Minor deviazione", Icon: RouteIcon },
-  { mode: "on_route", label: "Sul percorso", Icon: MotorwayIcon },
+const SORTS: ReadonlyArray<{ mode: SortMode; label: string; title: string; Icon: typeof SavingsIcon }> = [
+  { mode: "savings", label: "Più conveniente", title: "Risparmio netto maggiore per prime", Icon: SavingsIcon },
+  { mode: "detour", label: "Minor deviazione", title: "Meno chilometri extra per prime", Icon: RouteIcon },
+  { mode: "on_route", label: "Sul percorso", title: "Stazioni sulla strada, in ordine di incontro", Icon: MotorwayIcon },
 ];
 
 function Chip({
@@ -106,6 +107,13 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
 
   const visible = useMemo(() => applyFilters(results, { sort, onlySelf, motorwayOnly }), [results, sort, onlySelf, motorwayOnly]);
   const bestId = useMemo(() => bestStationId(visible), [visible]);
+  // Percorso A→stazione→B della stazione selezionata; resta null se il routing non è disponibile.
+  const stopRoute = useStopRoute(response.searchId, selectedId);
+
+  // Se un filtro nasconde la stazione selezionata, la selezione (e il suo percorso) decade.
+  useEffect(() => {
+    if (selectedId !== null && !visible.some((r) => r.station.id === selectedId)) setSelectedId(null);
+  }, [visible, selectedId]);
 
   const mapStations = useMemo<MapStation[]>(
     () =>
@@ -120,15 +128,18 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
     [visible, bestId, request.fuelType],
   );
 
+  // Toccare di nuovo la stazione selezionata (scheda o pin) la deseleziona e toglie il percorso con sosta.
   const selectFromCard = useCallback((id: number) => {
     selectionFromMap.current = false;
-    setSelectedId(id);
+    setSelectedId((current) => (current === id ? null : id));
   }, []);
+
+  const deselect = useCallback(() => setSelectedId(null), []);
 
   const selectFromMap = useCallback(
     (id: number) => {
       selectionFromMap.current = true;
-      setSelectedId(id);
+      setSelectedId((current) => (current === id ? null : id));
       // Il pin può riguardare una stazione oltre le schede mostrate: le si mostra fino a quella.
       const index = visible.findIndex((r) => r.station.id === id);
       if (index >= 0) setShown((count) => Math.max(count, index + 1));
@@ -173,7 +184,14 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
           expanded ? "h-[18vh]" : "h-[40vh]"
         } min-h-[140px] md:absolute md:inset-0 md:h-auto`}
       >
-        <MapView geometry={response.route.geometry} stations={mapStations} selectedId={selectedId} onSelectStation={selectFromMap} />
+        <MapView
+          geometry={response.route.geometry}
+          stations={mapStations}
+          selectedId={selectedId}
+          stopRoute={stopRoute}
+          onSelectStation={selectFromMap}
+          onDeselect={deselect}
+        />
         <TelemetryCapsule
           origin={labels.origin}
           destination={labels.destination}
@@ -202,8 +220,8 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
         <div data-testid="sheet-scroll" className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-gutter pb-space-lg flex flex-col gap-space-md">
           <div className="flex flex-col gap-space-sm pt-space-xs md:pt-space-lg">
             <div role="group" aria-label="Ordina per" className="flex items-center gap-space-sm overflow-x-auto no-scrollbar py-0.5">
-              {SORTS.map(({ mode, label, Icon }) => (
-                <Chip key={mode} active={sort === mode} onClick={() => setSort(mode)}>
+              {SORTS.map(({ mode, label, title, Icon }) => (
+                <Chip key={mode} active={sort === mode} title={title} onClick={() => setSort(mode)}>
                   <Icon className="w-4 h-4" />
                   {label}
                 </Chip>
@@ -268,7 +286,7 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
             <button
               type="button"
               onClick={() => setShown((count) => count + INITIAL_CARDS)}
-              className="self-center h-10 px-space-xl rounded-full bg-surface-container-low text-on-surface text-label-lg font-label-lg hover:text-primary transition-colors shrink-0"
+              className="self-center h-10 px-space-xl rounded-full bg-surface-container-low text-on-surface text-label-lg font-label-lg hover:text-on-primary-fixed-variant transition-colors shrink-0"
             >
               Mostra altre {Math.min(INITIAL_CARDS, visible.length - shown)} stazioni ({visible.length - shown} rimaste)
             </button>

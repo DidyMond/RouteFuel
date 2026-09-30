@@ -48,7 +48,7 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
           <div
             aria-hidden="true"
             className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-label-lg font-label-lg ${
-              best ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
+              best ? "bg-primary/10 text-on-primary-fixed-variant" : "bg-secondary/10 text-on-secondary-fixed-variant"
             }`}
           >
             {brandInitials(station.bandiera, station.gestore)}
@@ -63,7 +63,7 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
                 </span>
               )}
             </div>
-            <span className="text-body-sm font-body-sm text-outline truncate">{place}</span>
+            <span className="text-body-sm font-body-sm text-on-surface-variant truncate">{place}</span>
           </div>
         </div>
 
@@ -71,13 +71,13 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
           <span className={`text-numeric-stat font-numeric-stat tabular-nums leading-tight ${best ? "text-primary" : "text-on-surface"}`}>
             €{formatPrice(result.price)}
           </span>
-          <span className="text-label-sm font-label-sm text-outline leading-none">{fuelModeLabel(fuelType, result.isSelf)}</span>
+          <span className="text-label-sm font-label-sm text-on-surface-variant leading-none">{fuelModeLabel(fuelType, result.isSelf)}</span>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-sm border-t border-outline-variant/20">
         <span
-          className="inline-flex items-center gap-1 h-[22px] px-space-md rounded-full bg-secondary/10 text-secondary text-label-sm font-label-sm tabular-nums whitespace-nowrap"
+          className="inline-flex items-center gap-1 h-[22px] px-space-md rounded-full bg-secondary/10 text-on-secondary-fixed-variant text-label-sm font-label-sm tabular-nums whitespace-nowrap"
           title={estimated ? "Stima geometrica, in attesa di verifica sul percorso reale" : "Verificato sul percorso reale"}
         >
           <RouteIcon className="w-3.5 h-3.5" />
@@ -117,7 +117,7 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
             onInfo(result);
           }}
           aria-label={`Info su ${station.nomeImpianto}`}
-          className="h-9 px-space-lg rounded-full bg-surface-container-low text-on-surface text-label-lg font-label-lg flex items-center gap-1.5 border border-transparent hover:border-primary hover:text-primary transition-colors"
+          className="h-9 px-space-lg rounded-full bg-surface-container-low text-on-surface text-label-lg font-label-lg flex items-center gap-1.5 border border-transparent hover:border-primary hover:text-on-primary-fixed-variant transition-colors"
         >
           <InfoIcon className="w-4 h-4" />
           Info
@@ -130,7 +130,7 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
           }}
           aria-label={`Naviga verso ${station.nomeImpianto}`}
           className={`h-9 px-space-xl rounded-full text-label-lg font-label-lg flex items-center gap-1.5 active:scale-[0.98] transition ${
-            best ? "bg-primary text-on-primary shadow-sm hover:brightness-95" : "bg-primary/10 text-primary hover:bg-primary/20"
+            best ? "bg-primary text-on-primary shadow-sm hover:brightness-95" : "bg-primary/10 text-on-primary-fixed-variant hover:bg-primary/20"
           }`}
         >
           <NavigateIcon className="w-4 h-4" />

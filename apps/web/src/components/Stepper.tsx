@@ -25,7 +25,7 @@ export function Stepper({ label, value, min, max, step, unit, onChange }: Steppe
         <button type="button" className={buttonClass} aria-label={`Diminuisci ${label.toLowerCase()}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - step))}>
           −
         </button>
-        <output className="min-w-16 text-center rounded-full bg-primary/10 text-primary px-space-md py-space-xs text-label-lg font-label-lg tabular-nums">
+        <output className="min-w-16 text-center rounded-full bg-primary/10 text-on-primary-fixed-variant px-space-md py-space-xs text-label-lg font-label-lg tabular-nums">
           {value} {unit}
         </output>
         <button type="button" className={buttonClass} aria-label={`Aumenta ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + step))}>

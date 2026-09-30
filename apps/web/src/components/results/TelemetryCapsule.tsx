@@ -19,11 +19,11 @@ export function TelemetryCapsule({ origin, destination, distanceKm, durationMinu
         <span className="text-headline-sm font-headline-sm text-[12px] text-on-surface truncate">
           {shortPlaceName(origin)} → {shortPlaceName(destination)}
         </span>
-        <span aria-hidden="true" className="text-outline text-body-sm shrink-0">
+        <span aria-hidden="true" className="text-on-surface-variant text-body-sm shrink-0">
           •
         </span>
         <span className="text-label-md font-label-md text-on-surface-variant tabular-nums shrink-0">{Math.round(distanceKm)} km</span>
-        <span aria-hidden="true" className="text-outline text-body-sm shrink-0">
+        <span aria-hidden="true" className="text-on-surface-variant text-body-sm shrink-0">
           •
         </span>
         <span className="text-label-md font-label-md text-on-surface-variant tabular-nums shrink-0">{formatDurationCompact(durationMinutes)}</span>

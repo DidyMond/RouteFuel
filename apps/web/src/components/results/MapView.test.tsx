@@ -8,7 +8,11 @@ vi.mock("./MapCanvas", () => ({
 
 import { MapView } from "./MapView";
 
-const props = { geometry: [[9, 45], [10, 45]] as Array<[number, number]>, stations: [], selectedId: null, onSelectStation: () => {} };
+const props = { geometry: [[9, 45], [10, 45]] as Array<[number, number]>, stations: [], selectedId: null,
+  stopRoute: null,
+  onSelectStation: () => {},
+  onDeselect: () => {},
+};
 
 afterEach(() => {
   vi.unstubAllEnvs();

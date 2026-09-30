@@ -81,7 +81,7 @@ export function NavigateSheet({ result, fuelType, onClose }: NavigateSheetProps)
               target="_blank"
               rel="noopener noreferrer"
               className={`h-12 rounded-full flex items-center justify-center gap-space-sm text-label-lg font-label-lg transition ${
-                index === 0 ? "bg-primary text-on-primary hover:brightness-95" : "bg-surface-container-low text-on-surface hover:text-primary"
+                index === 0 ? "bg-primary text-on-primary hover:brightness-95" : "bg-surface-container-low text-on-surface hover:text-on-primary-fixed-variant"
               }`}
             >
               {link.label}

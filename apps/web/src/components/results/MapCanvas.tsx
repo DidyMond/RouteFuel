@@ -2,6 +2,8 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
 import { pickVisibleMarkers } from "../../lib/declutter";
+import { getMapStyle } from "../../lib/env";
+import { MAP_LANGUAGE, STANDARD_CONFIG } from "../../lib/mapStyle";
 import { MinusIcon, PlusIcon, LocateIcon } from "../icons";
 
 export interface MapStation {
@@ -22,14 +24,18 @@ export interface MapCanvasProps {
   /** Stazioni in ordine di priorità (la prima ha la precedenza quando i pin si sovrappongono). */
   stations: readonly MapStation[];
   selectedId: number | null;
+  /** Percorso A→stazione→B della stazione selezionata (verde, sopra la rotta diretta); null = non disegnarlo. */
+  stopRoute: ReadonlyArray<[number, number]> | null;
   onSelectStation: (id: number) => void;
+  /** Tap sullo sfondo della mappa: deseleziona la stazione. */
+  onDeselect: () => void;
   /** Motivo per cui la mappa non può essere mostrata (token non valido, WebGL assente…). */
   onUnavailable: (reason: string) => void;
 }
 
-const STYLE = "mapbox://styles/mapbox/light-v11";
-// Colori dei token di DESIGN.md (secondary, secondary-container, error): Mapbox li vuole come stringhe, non come classi.
+// Colori dei token di DESIGN.md (secondary, secondary-container, primary, error): Mapbox li vuole come stringhe, non come classi.
 const ROUTE_COLOR = "#0284C7";
+const STOP_ROUTE_COLOR = "#059669";
 const ROUTE_DASH_COLOR = "#5bb8fe";
 const END_COLOR = "#ba1a1a";
 const PIN_SIZE = { width: 72, height: 34 } as const;
@@ -81,7 +87,16 @@ function routeBounds(geometry: ReadonlyArray<[number, number]>): mapboxgl.LngLat
   return bounds;
 }
 
-export default function MapCanvas({ token, geometry, stations, selectedId, onSelectStation, onUnavailable }: MapCanvasProps) {
+export default function MapCanvas({
+  token,
+  geometry,
+  stations,
+  selectedId,
+  stopRoute,
+  onSelectStation,
+  onDeselect,
+  onUnavailable,
+}: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const pinsRef = useRef<Map<number, PinEntry>>(new Map());
@@ -89,8 +104,8 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
   const loadedRef = useRef(false);
 
   // I valori più recenti servono ai listener registrati una volta sola.
-  const latest = useRef({ geometry, stations, selectedId, onSelectStation, onUnavailable });
-  latest.current = { geometry, stations, selectedId, onSelectStation, onUnavailable };
+  const latest = useRef({ geometry, stations, selectedId, stopRoute, onSelectStation, onDeselect, onUnavailable });
+  latest.current = { geometry, stations, selectedId, stopRoute, onSelectStation, onDeselect, onUnavailable };
 
   /**
    * Crea solo i pin che restano visibili dopo l'anti-sovrapposizione e rimuove gli altri: con decine di stazioni
@@ -160,11 +175,15 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
   useEffect(() => {
     if (!containerRef.current) return;
     let map: mapboxgl.Map;
+    const style = getMapStyle();
     try {
       mapboxgl.accessToken = token;
       map = new mapboxgl.Map({
         container: containerRef.current,
-        style: STYLE,
+        style: style.url,
+        // Tema e opzioni valgono solo per il basemap Standard; uno stile personalizzato (VITE_MAPBOX_STYLE_URL) ha le sue.
+        ...(style.isStandard ? { config: STANDARD_CONFIG } : {}),
+        language: MAP_LANGUAGE,
         bounds: latest.current.geometry.length > 0 ? routeBounds(latest.current.geometry) : undefined,
         fitBoundsOptions: { padding: FIT_PADDING, maxZoom: 15 },
         attributionControl: true,
@@ -188,13 +207,18 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
       }
     });
 
+    // Nel basemap Standard i livelli propri si inseriscono nello slot "middle": sopra le strade, sotto le etichette.
+    const slot = style.isStandard ? ({ slot: "middle" } as const) : {};
+
     map.on("load", () => {
       loadedRef.current = true;
       map.addSource("route", { type: "geojson", data: lineData(latest.current.geometry) });
+      map.addSource("stop-route", { type: "geojson", data: lineData(latest.current.stopRoute ?? []) });
       map.addLayer({
         id: "route-glow",
         type: "line",
         source: "route",
+        ...slot,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": ROUTE_COLOR, "line-opacity": 0.22, "line-width": 14, "line-blur": 2 },
       });
@@ -202,6 +226,7 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
         id: "route-casing",
         type: "line",
         source: "route",
+        ...slot,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": "#ffffff", "line-width": 8 },
       });
@@ -209,6 +234,7 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
         id: "route-line",
         type: "line",
         source: "route",
+        ...slot,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": ROUTE_COLOR, "line-width": 5 },
       });
@@ -216,8 +242,26 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
         id: "route-direction",
         type: "line",
         source: "route",
+        ...slot,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": ROUTE_DASH_COLOR, "line-width": 2, "line-dasharray": [1.5, 2.5] },
+      });
+      // Percorso con sosta: sopra la rotta diretta, che resta azzurra dove i due tracciati divergono.
+      map.addLayer({
+        id: "stop-route-casing",
+        type: "line",
+        source: "stop-route",
+        ...slot,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.9 },
+      });
+      map.addLayer({
+        id: "stop-route-line",
+        type: "line",
+        source: "stop-route",
+        ...slot,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": STOP_ROUTE_COLOR, "line-width": 4.5 },
       });
       syncEndpoints();
       // Il contenitore può avere altezza 0 alla creazione: si inquadra il percorso quando la dimensione è nota.
@@ -226,6 +270,8 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
       syncPins();
     });
 
+    // I pin sono elementi DOM che fermano la propagazione: qui arrivano solo i tap sullo sfondo.
+    map.on("click", () => latest.current.onDeselect());
     map.on("moveend", syncPins);
     map.on("zoomend", syncPins);
 
@@ -276,6 +322,13 @@ export default function MapCanvas({ token, geometry, stations, selectedId, onSel
     syncEndpoints();
     fitRoute(false);
   }, [geometry]);
+
+  // Percorso con sosta della stazione selezionata.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    (map.getSource("stop-route") as mapboxgl.GeoJSONSource | undefined)?.setData(lineData(stopRoute ?? []));
+  }, [stopRoute]);
 
   // Pin delle stazioni: si riconciliano a ogni cambio di filtri o di selezione.
   useEffect(() => {

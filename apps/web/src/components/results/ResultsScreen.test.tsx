@@ -1,18 +1,27 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchState } from "../../hooks/useSearch";
-import { makeResponse, makeResult, REQUEST } from "../../test/fixtures";
+import { makeDivergingResults, makeResponse, makeResult, REQUEST } from "../../test/fixtures";
 import type { MapStation } from "./MapCanvas";
 
 // Mapbox GL richiede WebGL, assente in jsdom: la mappa è sostituita da uno stub che espone le props ricevute.
-const mapProps: { current: { stations: MapStation[]; selectedId: number | null; onSelectStation: (id: number) => void } | null } = {
-  current: null,
-};
+interface StubProps {
+  stations: MapStation[];
+  selectedId: number | null;
+  stopRoute: ReadonlyArray<[number, number]> | null;
+  onSelectStation: (id: number) => void;
+  onDeselect: () => void;
+}
+const mapProps: { current: StubProps | null } = { current: null };
 vi.mock("./MapView", () => ({
-  MapView: (props: { stations: MapStation[]; selectedId: number | null; onSelectStation: (id: number) => void }) => {
+  MapView: (props: StubProps) => {
     mapProps.current = props;
-    return <div data-testid="map-stub">{props.stations.map((s) => s.id).join(",")}</div>;
+    return (
+      <div data-testid="map-stub" data-stop-route={props.stopRoute ? props.stopRoute.length : "none"}>
+        {props.stations.map((s) => s.id).join(",")}
+      </div>
+    );
   },
 }));
 
@@ -86,6 +95,26 @@ describe("ResultsScreen — contenuto", () => {
     expect(within(gamma).getByText("Solo servito")).toBeInTheDocument();
   });
 
+  it("la card mostra la deviazione verificata se disponibile, altrimenti la stima proxy con «~»", () => {
+    const results = [
+      makeResult({ station: { id: 1 }, detourSource: "routing", detourKm: 1.6, detourMinutes: 2.9, netSavings: 6 }),
+      makeResult({ station: { id: 2 }, detourSource: "proxy", detourKm: 2, detourMinutes: 3, netSavings: 5 }),
+    ];
+    render(<ResultsScreen state={makeState({ response: makeResponse({ results }), results })} />);
+    const [verified, estimated] = screen.getAllByTestId("station-card");
+
+    const verifiedPill = within(verified!).getByText(/\+1,6 km/);
+    expect(verifiedPill).toHaveTextContent("+1,6 km (+3 min)");
+    expect(verifiedPill).not.toHaveTextContent("~");
+    expect(verifiedPill).toHaveAttribute("title", "Verificato sul percorso reale");
+    expect(within(verified!).getByText(/Risparmi/)).not.toHaveTextContent("~");
+
+    const estimatedPill = within(estimated!).getByText(/\+2,0 km/);
+    expect(estimatedPill).toHaveTextContent("~+2,0 km (+3 min)");
+    expect(estimatedPill).toHaveAttribute("title", expect.stringContaining("Stima"));
+    expect(within(estimated!).getByText(/Risparmi/)).toHaveTextContent("~");
+  });
+
   it("solo la stazione con il maggior risparmio ha il badge «Migliore»", () => {
     render(<ResultsScreen state={makeState()} />);
     const badges = screen.getAllByText("Migliore");
@@ -113,7 +142,7 @@ describe("ResultsScreen — contenuto", () => {
 });
 
 describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () => {
-  it("«Minor deviazione» e «Sul percorso» (ordine di percorrenza) riordinano l'elenco e la mappa, senza alcuna chiamata di rete", async () => {
+  it("«Minor deviazione» e «Sul percorso» (distanza dal tracciato) riordinano l'elenco e la mappa, senza alcuna chiamata di rete", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
     expect(cardIds()).toEqual([1, 2, 3]);
@@ -123,8 +152,8 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(screen.getByTestId("map-stub")).toHaveTextContent("2,3,1");
 
     await user.click(screen.getByRole("button", { name: "Sul percorso" }));
-    expect(cardIds()).toEqual([2, 3, 1]);
-    expect(screen.getByTestId("map-stub")).toHaveTextContent("2,3,1");
+    expect(cardIds()).toEqual([2, 1, 3]); // distanza laterale: 0,1 · 0,2 · 0,9 km
+    expect(screen.getByTestId("map-stub")).toHaveTextContent("2,1,3");
 
     await user.click(screen.getByRole("button", { name: "Più conveniente" }));
     expect(cardIds()).toEqual([1, 2, 3]);
@@ -193,13 +222,36 @@ describe("ResultsScreen — ordinamento e filtri (client-side, senza rete)", () 
     expect(cardIds()).toEqual([5]);
   });
 
-  it("«Sul percorso» mostra per prima la stazione più vicina alla partenza lungo il tracciato", async () => {
+  it("«Sul percorso» mostra per prima la stazione più vicina alla strada, e il chip spiega l'ordine", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
-    await user.click(screen.getByRole("button", { name: "Sul percorso" }));
-    const along = screen.getAllByTestId("station-card").map((card) => Number(/A (\d+),\d km dalla partenza/.exec(card.textContent ?? "")?.[1]));
-    expect(along).toEqual([...along].sort((a, b) => a - b));
-    expect(along[0]).toBe(20);
+    const chip = screen.getByRole("button", { name: "Sul percorso" });
+    expect(chip).toHaveAttribute("title", "Stazioni sulla strada, in ordine di incontro");
+    await user.click(chip);
+    expect(cardIds()[0]).toBe(2); // la più vicina al tracciato (0,1 km)
+  });
+
+  it("tre ordinamenti che divergono per forza: ognuno riordina davvero l'elenco e la mappa, senza rete", async () => {
+    const user = userEvent.setup();
+    const results = makeDivergingResults();
+    render(<ResultsScreen state={makeState({ response: makeResponse({ results }), results })} />);
+    const order = (mode: string) => user.click(screen.getByRole("button", { name: mode }));
+
+    expect(screen.getByRole("button", { name: "Più conveniente" })).toHaveAttribute("aria-pressed", "true");
+    expect(cardIds()).toEqual([11, 12, 13, 14]); // risparmio netto
+
+    await order("Minor deviazione");
+    expect(screen.getByRole("button", { name: "Minor deviazione" })).toHaveAttribute("aria-pressed", "true");
+    expect(cardIds()).toEqual([12, 13, 14, 11]); // km extra
+    expect(screen.getByTestId("map-stub")).toHaveTextContent("12,13,14,11");
+
+    await order("Sul percorso");
+    expect(cardIds()).toEqual([13, 11, 14, 12]); // distanza laterale
+    expect(screen.getByTestId("map-stub")).toHaveTextContent("13,11,14,12");
+
+    await order("Più conveniente");
+    expect(cardIds()).toEqual([11, 12, 13, 14]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("una nuova ricerca (searchId diverso) riparte da filtri puliti", async () => {
@@ -246,13 +298,24 @@ describe("ResultsScreen — elenco lungo", () => {
   });
 });
 
-describe("ResultsScreen — contrasto del testo piccolo (WCAG AA)", () => {
-  it("nessun testo sotto i 14px usa text-primary: si usa text-on-primary-fixed-variant", () => {
+describe("ResultsScreen — contrasto del testo piccolo (WCAG AA, regola ≤14px)", () => {
+  it("nessun testo ≤14px usa text-primary, text-secondary o text-outline: si usano le varianti scure", () => {
     const { container } = render(<ResultsScreen state={makeState()} />);
-    const small = container.querySelectorAll(".text-label-sm, .text-label-md, .text-body-sm");
+    const small = container.querySelectorAll(".text-label-sm, .text-label-md, .text-label-lg, .text-body-sm, .text-body-md");
     expect(small.length).toBeGreaterThan(10);
-    const offenders = [...small].filter((el) => el.classList.contains("text-primary")).map((el) => el.outerHTML.slice(0, 90));
+    const weak = ["text-primary", "text-secondary", "text-outline"];
+    const offenders = [...small].filter((el) => weak.some((cls) => el.classList.contains(cls))).map((el) => el.outerHTML.slice(0, 90));
     expect(offenders).toEqual([]);
+  });
+
+  it("pill di deviazione e avatar in azzurro usano on-secondary-fixed-variant; indirizzo e modalità in on-surface-variant", () => {
+    render(<ResultsScreen state={makeState()} />);
+    const card = screen.getAllByTestId("station-card")[1]!; // non «Migliore»
+    expect(within(card).getByText(/\+0,4 km/)).toHaveClass("text-on-secondary-fixed-variant");
+    expect(within(card).getByText("Q8")).toHaveClass("text-on-secondary-fixed-variant");
+    expect(within(card).getByText("Benzina Self")).toHaveClass("text-on-surface-variant");
+    expect(within(card).getByText("Via Roma 1 · Bregnano")).toHaveClass("text-on-surface-variant");
+    expect(within(card).getByRole("button", { name: /Naviga verso/ })).toHaveClass("text-on-primary-fixed-variant");
   });
 
   it("il risparmio (pill verde chiara) e il conteggio in capsula usano il verde scuro", () => {
@@ -394,5 +457,123 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
     const card = screen.getAllByTestId("station-card")[0]!;
     await user.click(within(card).getByRole("button", { name: /Info su/ }));
     expect(card).not.toHaveAttribute("aria-current");
+  });
+});
+
+describe("ResultsScreen — percorso con sosta (A→stazione→B)", () => {
+  const STOP_GEOMETRY: Array<[number, number]> = [
+    [9.204, 45.4864],
+    [9.9, 45.1],
+    [10.3, 45.0],
+    [11.3426, 44.5058],
+  ];
+  const routeUrl = (id: number) => `/search/s1/stations/${id}/route`;
+  const okResponse = (stationId: number) => ({
+    ok: true,
+    json: async () => ({ searchId: "s1", stationId, distanceKm: 220, durationMinutes: 156, detourKm: 1.6, detourMinutes: 2.9, geometry: STOP_GEOMETRY }),
+  });
+
+  it("senza stazione selezionata non disegna nessun percorso con sosta e non chiama il server", () => {
+    render(<ResultsScreen state={makeState()} />);
+    expect(screen.getByTestId("map-stub")).toHaveAttribute("data-stop-route", "none");
+    expect(mapProps.current?.stopRoute).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("selezionando una card chiede il percorso della stazione e lo passa alla mappa", async () => {
+    fetchSpy.mockResolvedValue(okResponse(2));
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+
+    await user.click(screen.getAllByTestId("station-card")[1]!); // stazione 2
+    await waitFor(() => expect(screen.getByTestId("map-stub")).toHaveAttribute("data-stop-route", String(STOP_GEOMETRY.length)));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String(fetchSpy.mock.calls[0]![0])).toContain(routeUrl(2));
+    expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY);
+    expect(mapProps.current?.selectedId).toBe(2);
+  });
+
+  it("selezionando un pin sulla mappa chiede lo stesso percorso", async () => {
+    fetchSpy.mockResolvedValue(okResponse(3));
+    render(<ResultsScreen state={makeState()} />);
+    act(() => mapProps.current!.onSelectStation(3));
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    expect(String(fetchSpy.mock.calls[0]![0])).toContain(routeUrl(3));
+  });
+
+  it("deselezionando (secondo tap sulla card, o tap sullo sfondo della mappa) il percorso viene rimosso", async () => {
+    fetchSpy.mockResolvedValue(okResponse(2));
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    const card = screen.getAllByTestId("station-card")[1]!;
+
+    await user.click(card);
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    await user.click(card);
+    expect(mapProps.current?.selectedId).toBeNull();
+    expect(mapProps.current?.stopRoute).toBeNull();
+
+    await user.click(card);
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    act(() => mapProps.current!.onDeselect());
+    expect(mapProps.current?.selectedId).toBeNull();
+    expect(mapProps.current?.stopRoute).toBeNull();
+  });
+
+  it("cambiando stazione il tracciato precedente sparisce subito e compare quello nuovo; riselezionare non rifà la chiamata", async () => {
+    fetchSpy.mockImplementation(async (url: string) => okResponse(Number(/stations\/(\d+)\//.exec(url)![1])));
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    const [first, second] = screen.getAllByTestId("station-card");
+
+    await user.click(first!);
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    await user.click(second!);
+    expect(mapProps.current?.selectedId).toBe(2);
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    await user.click(first!); // già in cache
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("routing non disponibile (kill switch / offline): nessun tracciato disegnato e il badge «stima» resta", async () => {
+    fetchSpy.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: { code: "BUDGET_EXHAUSTED", message: "Limite mensile raggiunto." } }),
+    });
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    const card = screen.getAllByTestId("station-card")[0]!; // stazione 1: stima proxy
+
+    await user.click(card);
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    expect(mapProps.current?.selectedId).toBe(1);
+    expect(mapProps.current?.stopRoute).toBeNull();
+    expect(within(card).getByText(/~\+3,0 km/)).toHaveAttribute("title", expect.stringContaining("Stima"));
+  });
+
+  it("errore di rete: nessun tracciato e nessuna eccezione", async () => {
+    fetchSpy.mockRejectedValue(new TypeError("Failed to fetch"));
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    await user.click(screen.getAllByTestId("station-card")[0]!);
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    expect(mapProps.current?.stopRoute).toBeNull();
+  });
+
+  it("se un filtro nasconde la stazione selezionata, selezione e percorso decadono", async () => {
+    fetchSpy.mockResolvedValue(okResponse(2));
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    await user.click(screen.getAllByTestId("station-card")[1]!); // stazione 2, non autostradale
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+
+    await user.click(screen.getByRole("button", { name: "Autostrada" }));
+    expect(mapProps.current?.selectedId).toBeNull();
+    expect(mapProps.current?.stopRoute).toBeNull();
   });
 });
