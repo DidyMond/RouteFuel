@@ -72,6 +72,8 @@ assets/    Logo ufficiale
    VITE_MAPBOX_PUBLIC_TOKEN=pk.il_tuo_token_pubblico
    ```
 
+   Opzionale: `VITE_MAPBOX_STYLE_URL=mapbox://styles/utente/id` sostituisce lo stile della mappa (default: Mapbox Standard, tema monocromatico, etichette in italiano) senza toccare il codice.
+
    Vite legge il file solo all'avvio: riavvia `pnpm dev:web` dopo averlo creato o modificato. Non usare il token del server nel browser. Dettagli e costi in `docs/OPEN_QUESTIONS.md` (punto A).
 
 7. **Avviare backend e frontend** (in due terminali separati):
@@ -89,7 +91,7 @@ assets/    Logo ufficiale
 
 ## Provare la ricerca
 
-**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione / Sul percorso, cioè nell'ordine in cui incontri le stazioni partendo da A) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla, **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
+**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione / Sul percorso, cioè prima le stazioni realmente sulla strada) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla (la mappa disegna in verde il percorso A→stazione→B; un secondo tocco deseleziona), **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
 
 **Dalla riga di comando** (PowerShell), esempio Milano Centrale → Bologna Centrale:
 
@@ -117,8 +119,8 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 131 test di `packages/core` + 159 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 79 di `apps/web` | niente: zero rete, zero database |
-| `pnpm --filter @routefuel/web test` | Solo i 79 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
+| `pnpm test` | 142 test di `packages/core` + 169 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 97 di `apps/web` | niente: zero rete, zero database |
+| `pnpm --filter @routefuel/web test` | Solo i 97 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 

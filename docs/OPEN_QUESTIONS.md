@@ -1,5 +1,7 @@
 # Open Questions — dopo la Milestone 2
 
+> **Revisione funzionale di M2 (30/09/2026):** M2 resta in revisione. Bug della deviazione verificata risolto (punto **22**), «Sul percorso» con la nuova semantica (punto **12**), contrasto esteso a ≤14px (punti **17**/**21**). Dati sull'autostrada nel routing: punto **23**. Nessun merge su `main` finché non confermi.
+
 > **Risolti con la revisione di M2 (29/09/2026):** punti **1**, **2**, **12**, **13**, **17** (dettaglio nei singoli punti). In attesa risposta ministero: **7** · rinviato: **9**.
 
 > Milestone 1 **confermata e integrata in `main`** (29/09/2026). Stato dei punti: **7** in attesa risposta ministero · **9** rinviato · gli altri restano aperti con la raccomandazione indicata (procedo con quella se non indichi diversamente).
@@ -78,8 +80,12 @@ Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (no
 
 ## Emersi in Milestone 2 (Risultati & Mappa)
 
-### 12. «Sul percorso»: che ordinamento è? — ✅ RISOLTO (ordine di percorrenza)
-> **Decisione:** «Sul percorso» ordina per **ordine di percorrenza**: la stazione che si incontra per prima partendo da A viene mostrata prima (`alongRouteKm` crescente; a pari posizione, prima la più vicina alla strada, poi la più conveniente). Logica in `packages/core` (`sortResults`), con test su tracciato lineare, a «U» e con verso invertito. Il testo qui sotto è la domanda originale.
+### 12. «Sul percorso»: che ordinamento è? — ✅ RISOLTO (distanza laterale, poi ordine di incontro)
+> **Decisione finale (30/09/2026):** ordinamento **primario per distanza laterale dal tracciato crescente** (le stazioni realmente sulla strada per prime), **secondario per ordine di percorrenza** (`alongRouteKm` crescente), **terziario per risparmio netto**. Title del chip: «Stazioni sulla strada, in ordine di incontro». Logica in `packages/core` (`sortResults`), con test su tracciato lineare, a «U», con verso invertito e sulla precedenza della distanza laterale. Sostituisce la decisione precedente («solo ordine di percorrenza»).
+>
+> **Nota sul criterio secondario:** la distanza laterale arriva dall'API arrotondata a 10 m, quindi due stazioni hanno quasi sempre distanze diverse e l'ordine di incontro interviene solo nei pareggi reali (stazioni affacciate sullo stesso punto, o a 0,00 km). Se vuoi che l'ordine di incontro conti di più, si può raggruppare la distanza in fasce (es. 100 m: dentro la fascia vale l'ordine di percorrenza). Non l'ho fatto perché la decisione era un'altra: dimmi se la vuoi.
+>
+> Il testo qui sotto è la domanda originale.
 
 Il PRD elenca «Sul percorso» tra gli ordinamenti senza definirlo. **Provvisorio:** distanza laterale dal tracciato crescente (le stazioni più «sulla strada»), a parità decide il risparmio. Alternativa: ordine di percorrenza (dalla prima che incontri alla più lontana da casa). Nota: il mockup mostra «Miglior tempo» al posto di «Sul percorso»; ho seguito PRD e DESIGN.md. Quale preferisci?
 
@@ -115,10 +121,35 @@ L'elenco mostra le prime 20 schede (mappa e filtri lavorano su tutte le stazioni
 ### 20. Hosting: le rotte dell'app (`/results`) richiedono un rewrite
 La navigazione usa rotte vere (`/`, `/results`). In produzione Vercel deve reindirizzare ogni percorso a `index.html` (rewrite SPA). Da configurare in M5/M6; in sviluppo e con `vite preview` funziona già.
 
-### 21. Contrasto residuo: testo a 14px e azzurro `secondary`
+### 21. Contrasto residuo: testo a 14px e azzurro `secondary` — ✅ RISOLTO in gran parte (30/09/2026); resta il bianco su `bg-primary` → M7
+> **Decisione:** regola estesa a **≤14px**; testo piccolo in `secondary` su chiaro → `text-on-secondary-fixed-variant`; indirizzo e «Benzina Self» delle card da `text-outline` a `text-on-surface-variant`. Applicato a tutto il web (stepper dei litri, avatar del brand, «Naviga» non evidenziato, pill di deviazione, valore della deviazione massima, separatori della capsula) e coperto da test. **Resta accettato**, da tracciare in Milestone 7, il testo bianco su `bg-primary` (chip attivi, badge «Migliore», pin verde). Non toccato: il segnaposto dei campi di ricerca (`placeholder:text-outline`, 4,49:1). Il testo qui sotto è la segnalazione originale.
+
 La regola confermata riguarda il testo **sotto i 14px** e il verde. Restano fuori, e Lighthouse potrebbe ancora segnalarli:
 - **testo a esattamente 14px** in `text-primary` su tinta chiara: numero litri nello stepper, iniziali dell'avatar del brand, pulsante «Naviga» non evidenziato (`label-lg`);
 - **testo bianco sul riempimento `bg-primary`** (chip attivi, badge «Migliore», pin verde): 3,76:1 su testo di 11–14px, ma la regola lascia i fill invariati;
 - **azzurro `secondary` (#0284C7) su tinta chiara** (pill di deviazione, slider «Deviazione massima»): ~3,6:1 su testo piccolo.
 - **`text-outline` (#6d7a72) su bianco**: 4,49:1, a un soffio dai 4,5:1 (riga indirizzo e etichetta «Benzina Self» nelle card); basterebbe `text-on-surface-variant`.
 **Raccomando** di estendere la regola a «≤14px» e di applicare la stessa logica all'azzurro con `text-on-secondary-fixed-variant` (#004b73, già nei token). Non l'ho fatto perché la tua conferma riguardava solo il verde sotto i 14px.
+
+### 22. Deviazione verificata: il percorso diretto è il più veloce, non il più corto — ✅ CORRETTO, da confermare la regola
+**Sintomo:** la card di «1858 BREGNANO» (Ceriano Laghetto → Lomazzo, 0,8 km dal tracciato) mostrava «+0,0 km (+3 min)», e «Minor deviazione» dava lo stesso ordine di «Più conveniente».
+**Causa radice:** Mapbox `driving` restituisce il percorso più *veloce*. Il diretto passa dall'A9 (15,49 km, 17,6 min); A→Bregnano→B usa strade locali (12,94 km, 20,6 min): −2,55 km, +2,93 min. Il codice faceva `max(0, ·)` su km e minuti separatamente (→ 0 km, +2,9 min). Non erano in causa proxy, arrotondamenti né il cablaggio: anche altre due stazioni verificate avevano 0,0 km, quindi il pareggio sui km riportava l'ordine per risparmio.
+**Regola applicata (`computeRoutedDetour`):** km = max(differenza reale, 2 × distanza laterale, 0); minuti = min(max(differenza reale, 0), km × 6 min/km, con minimo 1 min). Il minimo `2 × laterale` è il percorso in linea retta andata e ritorno; il tetto sui minuti impedisce che ~0 km costino minuti. Sul caso reale: +1,6 km, +2,9 min.
+**Da decidere (raccomandazione: tenere così):** in questi casi la stazione sul percorso alternativo farebbe *risparmiare* 2,5 km di carburante. Ho scelto di non dare credito (km ≥ minimo geometrico): è prudente, e il costo è irrilevante (0,2 € a 15 km/L). Alternative: (a) mostrare i km con segno («−2,5 km»), più fedele ma controintuitivo nella card; (b) confrontare con il percorso *più corto* invece che con il più veloce (richiede un secondo routing senza autostrada, vedi punto 23).
+
+### 23. Autostrada nel routing: dati per decidere il toggle «evita autostrada» (M4) — ℹ️ SOLO DATI, nessun cambio di comportamento
+`exclude=motorway` è **supportato** da Directions `mapbox/driving` (anche con waypoint intermedi; esiste anche `exclude=toll`). Il percorso con `steps=true` espone le classi di strada (`motorway`, `toll`) per ogni intersezione.
+
+| Percorso | Diretta | Senza autostrada (`exclude=motorway`) |
+|---|---|---|
+| **Ceriano Laghetto → Lomazzo** (test) | **15,49 km, 17,6 min**, di cui **5,28 km in autostrada a pedaggio** (A9/E35: 1,7 km + 3,6 km di raccordo) | **12,50 km, 18,2 min** (−3,0 km, +0,6 min) |
+| via «1858 Bregnano» | 12,94 km, 20,6 min, **nessun tratto autostradale** | identico |
+| Milano Duomo → Bologna Maggiore (riferimento) | 211,0 km, 149,5 min, 198,1 km in autostrada (A1) | 255,8 km, 285,9 min (+44,8 km, +136 min) |
+
+**Cosa implica:** sul percorso di test l'A9 fa guadagnare 0,6 min ma costa 3 km e un pedaggio; la stazione di Bregnano è «fuori dal tracciato» proprio perché il diretto prende l'autostrada, mentre il percorso che passa dalla stazione non la usa (da qui il punto 22). Con «evita autostrada» attivo la deviazione andrebbe misurata contro il diretto *senza* autostrada (qui 12,50 km/18,2 min → Bregnano costerebbe +0,44 km, +2,4 min) e il pedaggio oggi non entra in `S_net`. Suggerisco per M4: toggle che passa `exclude=motorway` sia al diretto sia alle verifiche, e il tragitto senza autostrada come baseline di deviazione; il pedaggio resta fuori dalla formula finché non c'è un dato (Mapbox non dà l'importo).
+
+### 24. Stile della mappa e lingua delle etichette — ✅ SCELTO
+Basemap Standard, tema `monochrome`; `language` non è una config di Standard (schema ufficiale letto dall'API degli stili), si usa l'opzione `language: "it"` di `mapboxgl.Map`. `VITE_MAPBOX_STYLE_URL` permette di sostituire lo stile senza toccare il codice; lo stile di brand si disegna a mano in Studio in M7. Motivazione del tema in `PLAN.md` (M2, decisione 10).
+
+### 25. Percorso con sosta: costo e limiti
+Il tracciato A→stazione→B viene richiesto alla selezione di una stazione. Per le prime 5 è già in cache (10 min), per le altre è **una chiamata Directions** in più (con kill switch e limite di 30 richieste/minuto per IP); il client ricorda le risposte per ricerca, quindi riselezionare non rifà la chiamata. Se il routing non è disponibile non si disegna nulla. Raccomando di tenerlo così; se preferisci, il disegno si può limitare alle sole stazioni verificate.

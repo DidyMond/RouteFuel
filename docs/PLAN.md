@@ -103,13 +103,14 @@ Branch: `feat/milestone-1-search`. Per ogni milestone si lavora su un branch ded
 
 ---
 
-## Milestone 2 — Screen 2: Risultati & Mappa Distributori ✅ implementata (in revisione)
+## Milestone 2 — Screen 2: Risultati & Mappa Distributori 🔧 in revisione funzionale
 
 Branch: `feat/milestone-2-results-map`.
 
 **Contenuto (come implementato):**
-- **Mappa Mapbox GL JS** (`light-v11`), caricata in modo lazy (chunk separato: la Home resta leggera) e scaricata in anticipo mentre il server cerca. Token pubblico da `apps/web/.env` (`VITE_MAPBOX_PUBLIC_TOKEN`, mai committato); senza token o con token non valido compare «Mappa non disponibile» e resta l'elenco. Percorso come polyline `secondary` (#0284C7) con alone e tratteggio direzionale; partenza e arrivo; controlli zoom e «ricentra». Pin con il prezzo: **verde con «verificato» per la «Migliore»**, neutro per le altre, evidenza sulla selezionata; **anti-sovrapposizione** (`pickVisibleMarkers`: resta un solo pin per gruppo di vicini, i pin compaiono zoomando) e creazione dei soli pin visibili. Capsula in alto con tratta, km, durata e numero di stazioni.
-- **Bottom sheet** (`rounded-t-3xl`, mappa al 40% dell'altezza, scorrimento solo nel foglio; maniglia per espandere/ridurre; su schermi larghi diventa barra laterale da 440 px sopra la mappa): ordinamento **Più conveniente / Minor deviazione / Sul percorso** (quest'ultimo per **ordine di percorrenza**, logica e test in `packages/core`) e pill **Solo Self / Autostrada**, tutti **client-side, senza chiamate di rete**. Card: avatar con iniziali da `Bandiera`, nome e indirizzo, badge «Migliore», prezzo grande con cifre tabulari e «Benzina Self», deviazione (`~` se stima), risparmio, «Solo servito», **Info** e **Naviga**. Prezzo di riferimento con il livello di `P_avg`. Banner in fondo con fonte MIMIT, data del file giornaliero e stato dei prezzi in tempo reale (`live` / `partial` / `unavailable` / `disabled`). Prime 20 schede + «Mostra altre».
+- **Mappa Mapbox GL JS** con il basemap **Standard** (tema `monochrome`, etichette in italiano, niente POI né 3D; stile sostituibile con `VITE_MAPBOX_STYLE_URL`, vedi la decisione 10), caricata in modo lazy (chunk separato: la Home resta leggera) e scaricata in anticipo mentre il server cerca. Token pubblico da `apps/web/.env` (`VITE_MAPBOX_PUBLIC_TOKEN`, mai committato); senza token o con token non valido compare «Mappa non disponibile» e resta l'elenco. Percorso come polyline `secondary` (#0284C7) con alone e tratteggio direzionale; partenza e arrivo; controlli zoom e «ricentra». Pin con il prezzo: **verde con «verificato» per la «Migliore»**, neutro per le altre, evidenza sulla selezionata; **anti-sovrapposizione** (`pickVisibleMarkers`: resta un solo pin per gruppo di vicini, i pin compaiono zoomando) e creazione dei soli pin visibili. Capsula in alto con tratta, km, durata e numero di stazioni.
+- **Bottom sheet** (`rounded-t-3xl`, mappa al 40% dell'altezza, scorrimento solo nel foglio; maniglia per espandere/ridurre; su schermi larghi diventa barra laterale da 440 px sopra la mappa): ordinamento **Più conveniente / Minor deviazione / Sul percorso** (quest'ultimo: prima le stazioni realmente sulla strada, cioè per **distanza laterale** crescente, poi per ordine di incontro da A, poi per risparmio; logica e test in `packages/core`) e pill **Solo Self / Autostrada**, tutti **client-side, senza chiamate di rete**. Card: avatar con iniziali da `Bandiera`, nome e indirizzo, badge «Migliore», prezzo grande con cifre tabulari e «Benzina Self», deviazione (`~` se stima), risparmio, «Solo servito», **Info** e **Naviga**. Prezzo di riferimento con il livello di `P_avg`. Banner in fondo con fonte MIMIT, data del file giornaliero e stato dei prezzi in tempo reale (`live` / `partial` / `unavailable` / `disabled`). Prime 20 schede + «Mostra altre».
+- **Percorso con sosta:** selezionando una stazione (scheda o pin) la mappa disegna A→stazione→B in verde `primary` (#059669) sopra la rotta diretta, che resta azzurra dove i due tracciati divergono. Nuovo endpoint `GET /search/:id/stations/:stationId/route` (stessa chiamata di routing della verifica: per le prime 5 stazioni è già in cache, per le altre costa una chiamata Directions, passa dal kill switch e dal rate limit). Se il routing non è disponibile nessun tracciato e resta il badge «stima». Un secondo tap sulla scheda o sul pin, o un tap sullo sfondo della mappa, deseleziona e rimuove il tracciato.
 - **Deep-link navigatore** (`lib/navigation`): iOS → Apple Maps, Android → Google Maps, altrove menu con Google Maps, Apple Maps e Waze (anche da «Info»). Nessun Screen 3.
 - **Navigazione**: rotte `/` e `/results` (react-router), barra inferiore «Cerca / Risultati» come da `DESIGN.md`; la Home resta montata così il form conserva i valori.
 - **Backend:** unica modifica additiva, `route.geometry` nella risposta di `POST /search` (→ `OPEN_QUESTIONS.md`, punto 18). Logica di ricerca invariata.
@@ -123,7 +124,7 @@ Branch: `feat/milestone-2-results-map`.
 - [x] Timestamp del file MIMIT e stato dei prezzi live sempre visibili nel banner.
 - [x] Nessun errore in console (flusso completo Home → ricerca → Risultati con Chrome).
 - [~] **Lighthouse (mobile, throttling simulato):** Home **99** (misura singola) / **91** (dentro il flusso); accessibilità Risultati 92, best practices 100. La ricerca con apertura dei Risultati (timespan) segna **76–79**, poco sotto 80: il costo è dominato da Mapbox GL (chunk da 533 kB gzip) e dal WebGL in software di Chrome headless; TBT 440–500 ms con CPU rallentata 4×. Ottimizzazioni fatte: chunk lazy con prefetch, solo i pin visibili, 20 schede iniziali. Non è misurabile con una navigazione classica perché `/results` richiede lo stato di una ricerca.
-- [x] Test: 79 test del web (ordinamento e filtri, deep-link, anti-sovrapposizione, rendering di schermata e card, banner, foglio Info, rotte); niente e2e.
+- [x] Test: 97 test del web (ordinamento e filtri, deep-link, anti-sovrapposizione, rendering di schermata e card, percorso con sosta, stile della mappa, banner, foglio Info, rotte); niente e2e.
 
 **Decisioni e affinamenti emersi in implementazione** (le interpretazioni provvisorie sono in `OPEN_QUESTIONS.md`, punti 12–20):
 1. `vite-plugin-env` non serve: Vite espone già le variabili `VITE_*`.
@@ -131,14 +132,19 @@ Branch: `feat/milestone-2-results-map`.
 3. Il foglio «Apri in navigatore» è un portale su `body`: dentro il contenitore fisso restava sotto la barra di navigazione.
 4. `index.html`: rimosso `user-scalable=no` (blocca lo zoom, segnalato da Lighthouse); etichetta accessibile del pulsante profilo allineata al testo visibile.
 5. **Contrasto WCAG (revisione):** il testo piccolo (<14px) su sfondo chiaro usa `text-on-primary-fixed-variant` invece di `text-primary`; regola aggiunta a `DESIGN.md`. Restano testo a 14px, bianco su `bg-primary` e azzurro `secondary` (→ `OPEN_QUESTIONS.md`, punto 21).
-6. **Revisione di M2:** «Sul percorso» per ordine di percorrenza (era distanza laterale), pill rinominata «Autostrada»; nuove decisioni su input e colori confermate (punti 1 e 2).
+6. **Revisione di M2:** pill rinominata «Autostrada»; decisioni su input e colori confermate (punti 1 e 2).
+7. **Bug deviazione «+0,0 km (+3 min)» (revisione funzionale).** Causa radice: il percorso diretto del provider è il più *veloce*, non il più corto. Sul percorso di test (Ceriano Laghetto → Lomazzo) il diretto passa dall'A9 (15,49 km, 17,6 min) mentre A→«1858 Bregnano»→B usa strade locali (12,94 km, 20,6 min): −2,55 km ma +2,93 min. `computeRoutedDetour` applicava `max(0, ·)` separatamente a km e minuti, quindi risultava «+0,0 km» con i minuti intatti, per una stazione a 0,8 km dal tracciato. Lo stesso zero compariva per altre due stazioni verificate e faceva coincidere «Minor deviazione» con «Più conveniente» (pareggio sui km → ordine per risparmio): non era un difetto del cablaggio. Correzione in `packages/core`: i km verificati non scendono sotto il minimo fisico `2 × distanza laterale`, e i minuti non superano i km extra alla velocità minima di 10 km/h (minimo 1 min): una deviazione di ~0 km non può costare minuti, una stazione fuori dal tracciato non ha mai «+0,0 km». Resta il valore verificato se disponibile, altrimenti il proxy con «~». Regressioni in `packages/core` (distanza laterale > 0 ⇒ km > 0; km ≈ 0 ⇒ minuti ≤ 1; combinazioni di km/minuti grezzi), in `apps/api` (caso reale) e nel web (card verificata vs proxy). → `OPEN_QUESTIONS.md`, punto 22.
+8. **«Sul percorso», nuova semantica decisa:** ordinamento primario per distanza laterale dal tracciato crescente (le stazioni realmente sulla strada per prime), secondario per ordine di incontro (`alongRouteKm`), terziario per risparmio. Sostituisce la semantica «ordine di percorrenza» della prima revisione. Chip con `title` «Stazioni sulla strada, in ordine di incontro». → punto 12.
+9. **Percorso con sosta** (vedi sopra): endpoint on-demand riusabile da Screen 3 (M3), che qui ottiene così la deviazione verificata di *qualunque* stazione.
+10. **Stile mappa.** Basemap **Mapbox Standard**, tema **`monochrome`**, scelto su `faded` per il contrasto con i nostri overlay: blu #0284C7 (rotta diretta) e verde #059669 (rotta con sosta, pin «Migliore»). `faded` conserva prati verdi e acqua azzurra desaturati: nel confronto sullo stesso percorso la polilinea verde si confondeva con i prati e l'azzurro con i corsi d'acqua; `monochrome` è fatto di soli grigi, quindi i due overlay restano distinguibili ovunque. Etichette in italiano: Standard **non ha** una config `language` (il suo schema ha `theme`, `lightPreset`, `show…Labels`, `color…`, `font`…), si usa l'opzione `language: "it"` di `mapboxgl.Map` (GL JS ≥ 3.10, installato 3.31). Disattivati POI, trasporto pubblico, strade pedonali e 3D (meno rumore sotto i pin, meno lavoro per la GPU); i nostri livelli stanno nello slot `middle` (sopra le strade, sotto le etichette). **`VITE_MAPBOX_STYLE_URL`** (opzionale, `mapbox://styles/utente/id`): se presente e valido sostituisce lo stile senza toccare il codice (con uno stile personalizzato non si applicano `config` e slot); un valore non valido ricade sul default. Nessuno stile creato via Styles API e nessuno scope `styles:*` richiesto ai token.
+11. **Contrasto esteso a «≤14px»** (approvato): `text-primary` → `text-on-primary-fixed-variant`, `text-secondary` → `text-on-secondary-fixed-variant` sul testo piccolo, e indirizzo e «Benzina Self» delle card da `text-outline` a `text-on-surface-variant`; regola in `DESIGN.md`. Resta accettato, e tracciato in M7, il testo bianco su `bg-primary`. Un test impedisce i tre colori deboli su testo ≤14px.
 
 ---
 ## Milestone 3 — Screen 3: Dettaglio Stazione
 
 **Contenuto:**
 - Pagina dettaglio con meta stazione, bento impatto viaggio, matrice prezzi Self/Servito.
-- Deviazione ricalcolata con routing reale **on-demand ogni volta che si apre Screen 3** per una stazione (riuso della cache se già verificata come parte della top-5 nella stessa ricerca; altrimenti singola chiamata con breve stato di caricamento) — Screen 3 non mostra mai una stima proxy grezza come se fosse un dato definitivo.
+- Deviazione ricalcolata con routing reale **on-demand ogni volta che si apre Screen 3** (l'endpoint `GET /search/:id/stations/:stationId/route` esiste già dalla revisione di M2 e restituisce anche `detourKm`/`detourMinutes` coerenti) per una stazione (riuso della cache se già verificata come parte della top-5 nella stessa ricerca; altrimenti singola chiamata con breve stato di caricamento) — Screen 3 non mostra mai una stima proxy grezza come se fosse un dato definitivo.
 - CTA "Apri nel Navigatore" con deep-link: rilevamento automatico OS (iOS→Apple Maps, Android→Google Maps) come scelta di default, con menu esplicito sempre raggiungibile (incluso Waze) per scegliere altrimenti.
 - **Rimozione totale (nessun placeholder visibile)** di: pill uscita autostradale specifica, badge "Aperto ora", griglia servizi/amenities, telefono, numero pompe (nessuno di questi campi esiste nei CSV MIMIT). Bookmark e Share **mantenuti** (azioni client-side pure: `localStorage` e Web Share API, non richiedono dati MIMIT).
 
@@ -154,6 +160,7 @@ Branch: `feat/milestone-2-results-map`.
 
 **Contenuto:**
 - Accordion profilo veicolo, consumi/carburante, algoritmo/filtri, notifiche/dati sistema.
+- Toggle **«Evita autostrada»** (PRD). Dati di partenza già raccolti in `OPEN_QUESTIONS.md`, punto 23: Mapbox lo supporta con `exclude=motorway`; attenzione al confronto, perché la deviazione si misura contro il percorso diretto scelto (con o senza autostrada).
 - Accordion "Algoritmo & Filtri": nuovo campo **Valore del tuo tempo** (`V_time`, €/min, default 0.15, range validato 0.05–1.00) e nuovo controllo **Prezzo di riferimento**: toggle Automatico (default, consigliato) / Manuale — con un campo numerico per carburante quando "Manuale" è selezionato, pre-compilato con l'ultimo valore automatico calcolato al momento dell'attivazione. Quando manuale, il valore sostituisce **completamente** il calcolo a cascata per tutte le ricerche successive (nessun blending), finché l'utente non torna ad Automatico. Questo soddisfa il requisito PRD di "override per singola ricerca" a livello pragmatico: non essendoci nell'MVP una UI di override rapido in Home/Risultati, il valore manuale impostato qui si applica a ogni ricerca fino a nuova modifica.
 - Accordion "Notifiche & Dati di Sistema": campo soglia di freschezza prezzi (default 72h).
 - Persistenza in `localStorage` (Open Question #10), con valori di default sensati e reset.
@@ -189,6 +196,19 @@ Branch: `feat/milestone-2-results-map`.
 **Criteri di accettazione:**
 - [ ] Ingestione schedulata verificata su ambiente di staging per almeno un ciclo giornaliero reale.
 - [ ] Nessun segreto in repo (verifica finale `.env.example` vs variabili realmente usate).
+
+---
+
+## Milestone 7 — Fedeltà UI ai mockup & polish
+
+**Backlog (emerso dalla revisione di M2):**
+- **Home = mockup 1:** search bar con glow e «Tragitti Frequenti»; il form di ricerca si apre in un bottom sheet al tap (`rounded-t-3xl`).
+- **Barra di navigazione a 4 tab** quando le schermate corrispondenti saranno disponibili (oggi solo «Cerca» e «Risultati»).
+- **Contrasto del bianco su verde:** testo bianco su `bg-primary` (chip attivi, badge «Migliore», pin verde) a 3,76:1 su testo piccolo; accettato per ora, da risolvere (token di design o peso/dimensione del testo).
+- **Stile mappa brand in Mapbox Studio** allineato ai token di `DESIGN.md` (superfici, strade, acqua), pubblicato e agganciato via `VITE_MAPBOX_STYLE_URL`.
+- Altre difformità dai mockup emerse in revisione (`OPEN_QUESTIONS.md`, punto 16) e «Miglior tempo» al posto di «Sul percorso» nel mockup.
+
+**Criteri di accettazione:** da definire a inizio milestone, confrontando schermata per schermata con i mockup in `mockup/`.
 
 ---
 
