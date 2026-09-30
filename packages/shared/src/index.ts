@@ -177,6 +177,22 @@ export interface SearchRefinementResponse {
   results: StationResult[];
 }
 
+/**
+ * Risposta di GET /search/:id/stations/:stationId/route — il percorso A→stazione→B (route con sosta) della stazione
+ * scelta. Stessa chiamata di routing della verifica della deviazione: per le prime stazioni è già in cache.
+ */
+export interface StationRouteResponse {
+  searchId: string;
+  stationId: number;
+  distanceKm: number;
+  durationMinutes: number;
+  /** Deviazione coerente rispetto al percorso diretto (vedi computeRoutedDetour). */
+  detourKm: number;
+  detourMinutes: number;
+  /** Tracciato A→stazione→B, [lon, lat], semplificato come quello del percorso diretto. */
+  geometry: Array<[number, number]>;
+}
+
 export interface GeocodeSuggestion {
   id: string;
   /** Testo principale, es. "Via Roma 10". */

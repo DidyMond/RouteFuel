@@ -33,6 +33,11 @@ export type _SchemaMatchesContract = Assert<
 
 export const searchIdParamsSchema = z.object({ id: z.string().uuid() });
 
+export const stationRouteParamsSchema = z.object({
+  id: z.string().uuid(),
+  stationId: z.coerce.number().int().positive(),
+});
+
 export const autocompleteQuerySchema = z.object({
   q: z.string().trim().min(3, "Servono almeno 3 caratteri").max(120),
   lon: z.coerce.number().min(-180).max(180).optional(),

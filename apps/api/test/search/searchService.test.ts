@@ -531,3 +531,105 @@ describe("SearchService — prezzi in tempo reale", () => {
     }
   });
 });
+
+describe("SearchService — deviazione verificata coerente (regressione stazione 1858 Bregnano)", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+
+  it("se A→S→B è più corto in km ma più lento del diretto, la deviazione non è «+0,0 km» e i minuti restano coerenti", async () => {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    // Come nel caso reale: il diretto è il percorso più veloce ma non il più corto (−2,5 km, +2,9 min passando dalla stazione).
+    const routing = new ScriptedRouting(async () => ({
+      distanceKm: direct!.distanceKm - 2.5,
+      durationMinutes: direct!.durationMinutes + 2.9,
+      geometry: [],
+    }));
+    const { service } = buildService(stations(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+
+    const refined = service.getRefinement(first.searchId)!.results.find((r) => r.station.id === 5)!;
+    expect(refined.detourSource).toBe("routing");
+    expect(refined.lateralDistanceKm).toBeGreaterThan(1); // 0.012° ≈ 1.33 km
+    expect(refined.detourKm).toBeGreaterThan(0);
+    expect(refined.detourKm).toBeCloseTo(2 * refined.lateralDistanceKm, 1); // minimo fisico: andata e ritorno in linea retta
+    expect(refined.detourMinutes).toBeCloseTo(2.9, 1);
+  });
+
+  it("nessuna stazione verificata con distanza laterale > 0 ha deviazione 0,0 km", async () => {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    const routing = new ScriptedRouting(async () => ({
+      distanceKm: direct!.distanceKm - 1,
+      durationMinutes: direct!.durationMinutes + 1,
+      geometry: [],
+    }));
+    const { service } = buildService(stations(), { routing });
+    const first = await service.search(request);
+    await service.waitForRefinement(first.searchId);
+    const refined = service.getRefinement(first.searchId)!;
+    for (const result of refined.results.filter((r) => r.detourSource === "routing")) {
+      expect(result.lateralDistanceKm).toBeGreaterThan(0);
+      expect(result.detourKm).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("SearchService.getStationRoute — percorso con sosta", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+
+  it("restituisce geometria A→stazione→B e deviazione coerente; passa dalla stazione", async () => {
+    const { service } = buildService(stations());
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+
+    const route = await service.getStationRoute(searchId, 5);
+    expect(route.stationId).toBe(5);
+    expect(route.geometry.length).toBeGreaterThan(2);
+    expect(route.geometry[0]).toEqual([ORIGIN.lon, ORIGIN.lat]);
+    expect(route.geometry[route.geometry.length - 1]).toEqual([DESTINATION.lon, DESTINATION.lat]);
+    // passa dalla stazione (lon 9.5, lat 45.012)
+    expect(route.geometry.some(([lon, lat]) => Math.abs(lon - 9.5) < 1e-4 && Math.abs(lat - 45.012) < 1e-4)).toBe(true);
+    expect(route.detourKm).toBeGreaterThan(0);
+    expect(route.distanceKm).toBeGreaterThan(0);
+  });
+
+  it("riusa la chiamata già fatta dalla verifica: nessuna richiesta Directions in più per le prime stazioni (con la cache)", async () => {
+    const mock = new MockRoutingProvider();
+    const { CachedRoutingProvider } = await import("../../src/providers/routing/CachedRoutingProvider");
+    const { service } = buildService(stations(), { routing: new CachedRoutingProvider(mock) });
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    const before = mock.calls.length;
+    await service.getStationRoute(searchId, 5);
+    expect(mock.calls.length).toBe(before);
+  });
+
+  it("kill switch / quota esaurita: l'errore si propaga e non si inventa nessun tracciato", async () => {
+    const routing = new ScriptedRouting(async () => {
+      throw new BudgetExhaustedError();
+    });
+    const { service } = buildService(stations(), { routing });
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    await expect(service.getStationRoute(searchId, 5)).rejects.toBeInstanceOf(BudgetExhaustedError);
+  });
+
+  it("nessun percorso passando dalla stazione → NO_ROUTE", async () => {
+    const routing = new ScriptedRouting(async () => null);
+    const { service } = buildService(stations(), { routing });
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    await expect(service.getStationRoute(searchId, 5)).rejects.toMatchObject({ code: "NO_ROUTE", httpStatus: 422 });
+  });
+
+  it("ricerca sconosciuta → SEARCH_NOT_FOUND; stazione non tra i risultati → NOT_FOUND", async () => {
+    const { service } = buildService(stations());
+    await expect(service.getStationRoute("00000000-0000-4000-8000-000000000000", 5)).rejects.toMatchObject({
+      code: "SEARCH_NOT_FOUND",
+      httpStatus: 404,
+    });
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    await expect(service.getStationRoute(searchId, 999999)).rejects.toMatchObject({ code: "NOT_FOUND", httpStatus: 404 });
+    await expect(service.getStationRoute(searchId, 5)).resolves.toBeDefined();
+  });
+});

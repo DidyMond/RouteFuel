@@ -342,3 +342,37 @@ describe("privacy dei log", () => {
     expect(logs).not.toContain("45.4866"); // né le coordinate della posizione utente
   });
 });
+
+describe("GET /search/:id/stations/:stationId/route", () => {
+  it("200 con la geometria del percorso con sosta", async () => {
+    const app = await makeApp();
+    const created = (await app.inject({ method: "POST", url: "/search", payload: validBody })).json();
+    const response = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/5/route` });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.stationId).toBe(5);
+    expect(body.geometry.length).toBeGreaterThan(2);
+    expect(body.detourKm).toBeGreaterThan(0);
+  });
+
+  it("404 SEARCH_NOT_FOUND per una ricerca sconosciuta, 404 NOT_FOUND per una stazione fuori dai risultati", async () => {
+    const app = await makeApp();
+    const unknown = await app.inject({ method: "GET", url: "/search/00000000-0000-4000-8000-000000000000/stations/5/route" });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json().error.code).toBe("SEARCH_NOT_FOUND");
+
+    const created = (await app.inject({ method: "POST", url: "/search", payload: validBody })).json();
+    const missing = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/424242/route` });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe("NOT_FOUND");
+  });
+
+  it("400 per parametri non validi", async () => {
+    const app = await makeApp();
+    const created = (await app.inject({ method: "POST", url: "/search", payload: validBody })).json();
+    const response = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/abc/route` });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+  });
+});

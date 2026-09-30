@@ -21,6 +21,7 @@ import type {
   SearchRefinementResponse,
   SearchRequest,
   SearchResponse,
+  StationRouteResponse,
   LivePricesInfo,
   StationResult,
   StationSummary,
@@ -182,6 +183,37 @@ export class SearchService {
     return { searchId, refinement: session.refinement, results: session.results.map(present) };
   }
 
+  /**
+   * Percorso A→stazione→B di una stazione tra i risultati della ricerca. Usa la stessa chiamata della verifica
+   * (quindi, per le prime stazioni, la cache); se il routing non è disponibile (kill switch, rete) lancia l'errore
+   * e il client non disegna nulla.
+   */
+  async getStationRoute(searchId: string, stationId: number): Promise<StationRouteResponse> {
+    const session = this.deps.sessions.get(searchId);
+    if (!session) throw new AppError("SEARCH_NOT_FOUND", 404, "Ricerca non trovata o scaduta.");
+    const result = session.results.find((r) => r.station.id === stationId);
+    if (!result) throw new AppError("NOT_FOUND", 404, "Stazione non presente tra i risultati della ricerca.");
+
+    const { request, route } = session;
+    const via = await this.deps.routing.getRoute([
+      request.origin,
+      { lon: result.station.lon, lat: result.station.lat },
+      request.destination,
+    ]);
+    if (!via) throw new AppError("NO_ROUTE", 422, "Nessun percorso stradale trovato passando da questa stazione.");
+
+    const detour = computeRoutedDetour(route, via, result.lateralDistanceKm);
+    return {
+      searchId,
+      stationId,
+      distanceKm: round(via.distanceKm, 1),
+      durationMinutes: round(via.durationMinutes, 0),
+      detourKm: round(detour.km, 2),
+      detourMinutes: round(detour.minutes, 1),
+      geometry: simplifyRoute(via.geometry).map(([lon, lat]) => [round(lon, 5), round(lat, 5)] as [number, number]),
+    };
+  }
+
   /** Solo per i test: attende la fine del ricalcolo in background. */
   async waitForRefinement(searchId: string): Promise<void> {
     await this.deps.sessions.get(searchId)?.refinementPromise;
@@ -208,7 +240,7 @@ export class SearchService {
               failures += 1;
               return { result, detour: null };
             }
-            return { result, detour: computeRoutedDetour(route, via) };
+            return { result, detour: computeRoutedDetour(route, via, result.lateralDistanceKm) };
           } catch (error) {
             failures += 1;
             if (error instanceof BudgetExhaustedError) {
