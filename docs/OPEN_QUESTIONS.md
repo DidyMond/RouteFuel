@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Aperti: i punti **7** e **11** e, dalla Milestone 3, i punti **12–15** (interpretazioni da confermare); tutto il resto è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo i punti **7** e **11**; tutto il resto è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -18,18 +18,6 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
-
-### 12. «Verificato MISE»: cosa si verifica davvero (M3)
-Il badge «Verificato MISE» nel dettaglio compare quando la **deviazione** è verificata col routing reale (`detour.source = "routing"`), come da specifica. Quello che viene da MISE sono i prezzi; la verifica della deviazione è di Mapbox Directions: l'etichetta può far pensare che sia MISE a garantire il percorso. **Raccomando** di lasciarla (ha un tooltip che lo spiega) o, se preferisci, di chiamarla «Verificato» / «Percorso verificato». Quale?
-
-### 13. Deep-link del navigatore: https invece di `maps://` e `comgooglemaps://` (M3)
-La specifica indicava `maps://` (iOS) e `comgooglemaps://` (Android). `comgooglemaps://` è lo schema di Google Maps **su iOS** e su Android non apre nulla; su Android Google Maps si apre con un link https (intent). Ho quindi mantenuto i link universali di M2 (Apple Maps su iOS, Google Maps su Android, menu altrove), che aprono comunque l'app se installata. **Raccomando** di non cambiare. Confermi?
-
-### 14. Screen 2: tap sulla scheda apre il dettaglio (M3)
-Per la specifica, tap sulla scheda e «Info» aprono Screen 3. Di conseguenza il tap sulla scheda non fa più da interruttore di selezione: la seleziona (e porta sulla mappa il percorso con sosta) **e** apre il dettaglio; per deselezionare si tocca il pin selezionato o lo sfondo della mappa. Il menu «Apri in navigatore» resta dietro «Naviga» su desktop. **Raccomando** di tenere così; se preferisci che la scheda selezioni soltanto e il dettaglio si apra solo da «Info», è una modifica piccola. Quale?
-
-### 15. Matrice prezzi: quali combinazioni mostrare (M3)
-Il listino mostra le combinazioni carburante × modalità dei **quattro carburanti MVP** con prezzo più recente della soglia di freschezza della ricerca (72 ore di default); HVO e carburanti non classificati non compaiono, e un prezzo più vecchio della soglia non viene mostrato come attuale. **Raccomando** di tenere così. Confermi?
 
 ---
 
@@ -59,3 +47,7 @@ Il listino mostra le combinazioni carburante × modalità dei **quattro carburan
 - **23. Autostrada nel routing** — chiuso come dati (tabella in `PLAN.md`, M4). In M4: toggle «Evita autostrada» con `exclude=motorway` applicato sia al diretto sia alle verifiche; il pedaggio resta fuori da `S_net`.
 - **24. Stile mappa e lingua** — Standard `monochrome`, etichette in italiano con l'opzione `language` di Map, `VITE_MAPBOX_STYLE_URL` per sostituire lo stile; stile di brand in M7.
 - **25. Percorso con sosta: costo e limiti** — confermato (cache, una chiamata Directions per le stazioni non verificate, kill switch, 30 richieste/minuto).
+- **M3·12. «Verificato MISE» (Screen 3)** — risolto: il badge attribuisce i **prezzi** alla fonte ufficiale Osservaprezzi (MISE) e sta nell'header del «Listino carburanti»; non compare nella meta stazione. La verifica del **percorso** è di Mapbox Directions ed è etichettata come tale nel tile «Deviazione»: «Percorso verificato» (`detourSource = routing`) oppure «Stima geometrica» (`proxy`), ciascuna con tooltip. Una stima non è mai presentata come verificata e l'informazione non sparisce mai.
+- **M3·13. Deep-link del navigatore** — risolto: restano i link https (Apple Maps, Google Maps, Waze). «Apri nel Navigatore» apre **sempre** il menu: l'app predefinita del sistema (Apple Maps su iOS, Google Maps su Android) è in prima posizione con l'etichetta «Consigliato», le altre sotto; un tap sul consigliato equivale al lancio diretto. Nessun pulsante secondario.
+- **M3·14. Tap sulla scheda in Screen 2** — risolto: il tap sulla scheda **seleziona** la stazione (pin evidenziato e percorso con sosta verde, come in M2); il dettaglio si apre **solo** da «Info».
+- **M3·15. Matrice prezzi** — risolto: il listino mostra solo i quattro carburanti MVP e i prezzi entro la soglia di freschezza della ricerca (HVO e carburanti non classificati esclusi).

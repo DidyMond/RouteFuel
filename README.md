@@ -91,7 +91,7 @@ assets/    Logo ufficiale
 
 ## Provare la ricerca
 
-**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin per selezionarlo (la mappa disegna in verde il percorso A→stazione→B; un secondo tocco deseleziona), tocca una scheda o **Info** per aprire il **dettaglio della stazione** (deviazione verificata, impatto sul viaggio, listino prezzi, salva e condividi; «indietro» ritrova i Risultati come li avevi lasciati), **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
+**Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla (la mappa disegna in verde il percorso A→stazione→B; un secondo tocco deseleziona), tocca **Info** per aprire il **dettaglio della stazione** (deviazione verificata, impatto sul viaggio, listino prezzi, salva e condividi; «indietro» ritrova i Risultati come li avevi lasciati), **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
 
 **Dalla riga di comando** (PowerShell), esempio Milano Centrale → Bologna Centrale:
 
@@ -119,8 +119,8 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 152 test di `packages/core` + 187 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 153 di `apps/web` | niente: zero rete, zero database |
-| `pnpm --filter @routefuel/web test` | Solo i 153 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
+| `pnpm test` | 152 test di `packages/core` + 187 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 168 di `apps/web` | niente: zero rete, zero database |
+| `pnpm --filter @routefuel/web test` | Solo i 168 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 
