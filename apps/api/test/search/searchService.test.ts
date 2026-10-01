@@ -1,6 +1,6 @@
-import type { SearchRequest } from "@routefuel/shared";
+import type { SearchRequest, StationPriceEntry } from "@routefuel/shared";
 import { describe, expect, it } from "vitest";
-import { AppError, BudgetExhaustedError } from "../../src/errors";
+import { AppError, BudgetExhaustedError, ProviderError } from "../../src/errors";
 import type { BudgetGate, BudgetStatus } from "../../src/providers/routing/DirectionsBudget";
 import { MockRoutingProvider } from "../../src/providers/routing/MockRoutingProvider";
 import type { RouteResult, RoutingProvider } from "../../src/providers/routing/RoutingProvider";
@@ -36,11 +36,16 @@ const onRoute = () => [
 
 function buildService(
   rows = onRoute(),
-  options: { national?: { median: number; sampleSize: number } | null; routing?: RoutingProvider; budget?: BudgetStatus } = {},
+  options: {
+    national?: { median: number; sampleSize: number } | null;
+    routing?: RoutingProvider;
+    budget?: BudgetStatus;
+    stationPrices?: Record<number, StationPriceEntry[]>;
+  } = {},
 ) {
   const routing = options.routing ?? new MockRoutingProvider();
   const budgetStatus: BudgetGate = { status: async () => options.budget ?? "ok" };
-  const repository = new InMemoryStationRepository(rows, options.national ?? null);
+  const repository = new InMemoryStationRepository(rows, options.national ?? null, undefined, options.stationPrices);
   const service = new SearchService({ routing, repository, budget: budgetStatus, sessions: new SearchSessionStore() });
   return { service, repository, routing };
 }
@@ -726,5 +731,144 @@ describe("SearchService — verifica finché la testa ha 5 stazioni confermate (
     await service.waitForRefinement(first.searchId);
     expect(calls).toBe(2 * REFINE_TOP_N); // il secondo giro parte, tutte le sue chiamate falliscono, poi il ciclo si chiude
     expect(service.getRefinement(first.searchId)!.refinement.status).toBe("done");
+  });
+});
+
+describe("SearchService.getStationDetail — dettaglio stazione (Screen 3)", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+  const prices: StationPriceEntry[] = [
+    { fuelType: "diesel", isSelf: false, price: 1.9, communicatedAt: "2026-09-29T08:00:00.000Z" },
+    { fuelType: "metano", isSelf: false, price: 1.3, communicatedAt: "2026-09-29T08:00:00.000Z" },
+    { fuelType: "benzina", isSelf: false, price: 1.8, communicatedAt: "2026-09-29T08:00:00.000Z" },
+    { fuelType: "benzina", isSelf: true, price: 1.7, communicatedAt: "2026-09-29T09:00:00.000Z" },
+    { fuelType: "diesel", isSelf: true, price: 1.65, communicatedAt: "2026-09-29T09:00:00.000Z" },
+  ];
+
+  /** Senza verifica in background (soglia soft del budget): i risultati restano stime proxy finché non si apre il dettaglio. */
+  const unverified = (options: Parameters<typeof buildService>[1] = {}) =>
+    buildService(stations(), { budget: "soft_limit", stationPrices: { 5: prices }, ...options });
+
+  it("calcola la deviazione on-demand con UNA chiamata di routing A→stazione→B e la dichiara «routing»", async () => {
+    const { service, routing } = unverified();
+    const search = await service.search(request);
+    expect(search.results.find((r) => r.station.id === 5)!.detourSource).toBe("proxy");
+
+    const detail = await service.getStationDetail(search.searchId, 5);
+    const via = (routing as MockRoutingProvider).calls.filter((c) => c.length === 3);
+    expect(via).toHaveLength(1);
+    expect(via[0]![0]).toEqual(ORIGIN);
+    expect(via[0]![1]).toEqual({ lon: 9.5, lat: 45.012 });
+    expect(via[0]![2]).toEqual(DESTINATION);
+    expect(detail.detour.source).toBe("routing");
+    expect(detail.detour.km).toBeGreaterThan(0);
+  });
+
+  it("riusa la verifica già fatta dal ricalcolo in background: nessuna chiamata di routing in più", async () => {
+    const { service, routing } = buildService(stations(), { stationPrices: { 5: prices } });
+    const search = await service.search(request);
+    await service.waitForRefinement(search.searchId);
+    const before = (routing as MockRoutingProvider).calls.length;
+
+    const detail = await service.getStationDetail(search.searchId, 5);
+    expect((routing as MockRoutingProvider).calls.length).toBe(before);
+    expect(detail.detour.source).toBe("routing");
+    const refined = service.getRefinement(search.searchId)!.results.find((r) => r.station.id === 5)!;
+    expect(detail.detour.km).toBeCloseTo(refined.detourKm, 2);
+  });
+
+  it("fornisce tutti i prezzi disponibili (carburante × modalità) in ordine stabile, con il filtro di freschezza della ricerca", async () => {
+    const { service, repository } = unverified();
+    const search = await service.search({ ...request, maxPriceAgeHours: 48 });
+    const detail = await service.getStationDetail(search.searchId, 5);
+
+    expect(detail.prices.map((p) => `${p.fuelType}:${p.isSelf ? "self" : "servito"}`)).toEqual([
+      "benzina:self",
+      "benzina:servito",
+      "diesel:self",
+      "diesel:servito",
+      "metano:servito",
+    ]);
+    expect(repository.lastStationPricesQuery).toEqual({ stationId: 5, maxAgeHours: 48 });
+  });
+
+  it("riporta la combinazione scelta in ricerca, i litri e il prezzo di riferimento", async () => {
+    const { service } = unverified();
+    const search = await service.search(request);
+    const detail = await service.getStationDetail(search.searchId, 5);
+
+    expect(detail.selected).toMatchObject({ fuelType: "benzina", isSelf: true, servitoOnly: false, price: 1.7 });
+    expect(detail.liters).toBe(45);
+    expect(detail.referencePrice).toEqual(search.referencePrice);
+    expect(detail.station.id).toBe(5);
+    expect(detail.station.indirizzo).toBe("Via Test 1");
+  });
+
+  it("calcola il differenziale vs riferimento (€/L e %) e un risparmio netto coerente con la formula", async () => {
+    const { service } = unverified();
+    const search = await service.search(request);
+    const detail = await service.getStationDetail(search.searchId, 5);
+    const reference = search.referencePrice.value;
+
+    expect(detail.impact.priceDifferencePerLiter).toBeCloseTo(1.7 - reference, 3);
+    expect(detail.impact.priceDifferencePerLiter).toBeLessThan(0);
+    expect(detail.impact.priceDifferencePercent).toBeCloseTo(((1.7 - reference) / reference) * 100, 1);
+    expect(detail.impact.grossSavings).toBeCloseTo((reference - 1.7) * 45, 2);
+    expect(detail.impact.netSavings).toBeCloseTo(detail.impact.grossSavings - detail.impact.detourCost, 1);
+    const fuel = detail.detour.km * (reference / 15);
+    const time = detail.detour.minutes * 0.15;
+    expect(detail.impact.detourCost).toBeCloseTo(fuel + time, 1);
+  });
+
+  it("FALLBACK — routing in errore: stima proxy dichiarata «proxy», mai spacciata per verificata", async () => {
+    const routing = new ScriptedRouting(async () => {
+      throw new ProviderError("Servizio di routing non raggiungibile");
+    });
+    const { service } = unverified({ routing });
+    const search = await service.search(request);
+    const proxy = search.results.find((r) => r.station.id === 5)!;
+
+    const detail = await service.getStationDetail(search.searchId, 5);
+    expect(detail.detour.source).toBe("proxy");
+    expect(detail.detour.km).toBeCloseTo(proxy.detourKm, 2);
+    expect(detail.detour.minutes).toBeCloseTo(proxy.detourMinutes, 1);
+    expect(detail.prices.length).toBeGreaterThan(0); // il resto del dettaglio resta disponibile
+  });
+
+  it("FALLBACK — kill switch (quota esaurita) e nessun percorso: ancora «proxy», senza errore", async () => {
+    for (const onVia of [
+      async () => {
+        throw new BudgetExhaustedError();
+      },
+      async () => null,
+    ]) {
+      const { service } = unverified({ routing: new ScriptedRouting(onVia) });
+      const search = await service.search(request);
+      const detail = await service.getStationDetail(search.searchId, 5);
+      expect(detail.detour.source).toBe("proxy");
+    }
+  });
+
+  it("tetto di deviazione: una stazione verificata oltre il massimo si mostra comunque, con i dati reali", async () => {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    const routing = new ScriptedRouting(async () => ({
+      distanceKm: direct!.distanceKm + 7.5,
+      durationMinutes: direct!.durationMinutes + 11,
+      geometry: [],
+    }));
+    const { service } = unverified({ routing });
+    const search = await service.search(request);
+    const detail = await service.getStationDetail(search.searchId, 5);
+    expect(detail.detour.source).toBe("routing");
+    expect(detail.detour.km).toBeCloseTo(7.5, 1);
+  });
+
+  it("ricerca sconosciuta → SEARCH_NOT_FOUND; stazione fuori dai risultati → NOT_FOUND", async () => {
+    const { service } = unverified();
+    await expect(service.getStationDetail("00000000-0000-4000-8000-000000000000", 5)).rejects.toMatchObject({
+      code: "SEARCH_NOT_FOUND",
+      httpStatus: 404,
+    });
+    const search = await service.search(request);
+    await expect(service.getStationDetail(search.searchId, 999999)).rejects.toMatchObject({ code: "NOT_FOUND", httpStatus: 404 });
   });
 });

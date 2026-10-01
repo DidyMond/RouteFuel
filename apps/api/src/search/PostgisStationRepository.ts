@@ -1,5 +1,5 @@
 import type { NationalPrice } from "@routefuel/core";
-import type { SearchFuelType } from "@routefuel/shared";
+import type { SearchFuelType, StationPriceEntry } from "@routefuel/shared";
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../db/types";
 import type { CorridorPriceRow, CorridorQuery, StationRepository } from "./StationRepository";
@@ -92,6 +92,24 @@ export class PostgisStationRepository implements StationRepository {
       return null;
     }
     return { median: row.median, sampleSize: row.sample_size };
+  }
+
+  async getStationPrices(stationId: number, maxAgeHours: number): Promise<StationPriceEntry[]> {
+    const result = await sql<{ fuel_type: SearchFuelType; is_self: boolean; price: number; communicated_at: Date }>`
+      SELECT fuel_type, is_self, price, communicated_at
+      FROM fuel_prices
+      WHERE station_id = ${stationId}
+        AND fuel_type IN ('benzina', 'diesel', 'gpl', 'metano')
+        AND communicated_at >= now() - make_interval(hours => ${maxAgeHours}::int)
+      ORDER BY fuel_type, is_self DESC
+    `.execute(this.db);
+
+    return result.rows.map((row) => ({
+      fuelType: row.fuel_type,
+      isSelf: row.is_self,
+      price: row.price,
+      communicatedAt: row.communicated_at.toISOString(),
+    }));
   }
 
   async getLastIngestionAt(): Promise<Date | null> {

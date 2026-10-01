@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo due punti; tutto il resto è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo i punti **7** e **11**; tutto il resto è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -47,3 +47,7 @@ Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (no
 - **23. Autostrada nel routing** — chiuso come dati (tabella in `PLAN.md`, M4). In M4: toggle «Evita autostrada» con `exclude=motorway` applicato sia al diretto sia alle verifiche; il pedaggio resta fuori da `S_net`.
 - **24. Stile mappa e lingua** — Standard `monochrome`, etichette in italiano con l'opzione `language` di Map, `VITE_MAPBOX_STYLE_URL` per sostituire lo stile; stile di brand in M7.
 - **25. Percorso con sosta: costo e limiti** — confermato (cache, una chiamata Directions per le stazioni non verificate, kill switch, 30 richieste/minuto).
+- **M3·12. «Verificato MISE» (Screen 3)** — risolto: il badge attribuisce i **prezzi** alla fonte ufficiale Osservaprezzi (MISE) e sta nell'header del «Listino carburanti»; non compare nella meta stazione. La verifica del **percorso** è di Mapbox Directions ed è etichettata come tale nel tile «Deviazione»: «Percorso verificato» (`detourSource = routing`) oppure «Stima geometrica» (`proxy`), ciascuna con tooltip. Una stima non è mai presentata come verificata e l'informazione non sparisce mai.
+- **M3·13. Deep-link del navigatore** — risolto: restano i link https (Apple Maps, Google Maps, Waze). «Apri nel Navigatore» apre **sempre** il menu: l'app predefinita del sistema (Apple Maps su iOS, Google Maps su Android) è in prima posizione con l'etichetta «Consigliato», le altre sotto; un tap sul consigliato equivale al lancio diretto. Nessun pulsante secondario.
+- **M3·14. Tap sulla scheda in Screen 2** — risolto: il tap sulla scheda **seleziona** la stazione (pin evidenziato e percorso con sosta verde, come in M2); il dettaglio si apre **solo** da «Info».
+- **M3·15. Matrice prezzi** — risolto: il listino mostra solo i quattro carburanti MVP e i prezzi entro la soglia di freschezza della ricerca (HVO e carburanti non classificati esclusi).

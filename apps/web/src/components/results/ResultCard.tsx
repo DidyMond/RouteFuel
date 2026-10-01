@@ -8,14 +8,16 @@ interface ResultCardProps {
   fuelType: SearchFuelType;
   best: boolean;
   selected: boolean;
+  /** Tap sulla scheda: seleziona la stazione (pin evidenziato e percorso con sosta sulla mappa). */
   onSelect: (id: number) => void;
+  /** «Info»: apre il dettaglio della stazione (Screen 3). */
   onInfo: (result: StationResult) => void;
   onNavigate: (result: StationResult) => void;
 }
 
 /**
  * Card di una stazione (DESIGN.md — Station Recommendation Cards). L'intera card è cliccabile
- * (seleziona la stazione sulla mappa), quindi ammette l'elevazione in hover; Info e Naviga sono
+ * (seleziona la stazione sulla mappa), quindi ammette l'elevazione in hover; Info (dettaglio) e Naviga sono
  * pulsanti propri e non propagano il click.
  */
 export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo, onNavigate }: ResultCardProps) {

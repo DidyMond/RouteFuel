@@ -25,9 +25,15 @@ vi.mock("./MapView", () => ({
   },
 }));
 
-import { ResultsScreen } from "./ResultsScreen";
+import { ResultsScreen as RealResultsScreen } from "./ResultsScreen";
 
 type SuccessState = Extract<SearchState, { status: "success" }>;
+
+// Tap su scheda o «Info»: la schermata chiede di aprire il dettaglio (la navigazione è di App, qui si osserva soltanto).
+const openStation = vi.fn();
+function ResultsScreen({ state }: { state: SuccessState }) {
+  return <RealResultsScreen state={state} onOpenStation={openStation} />;
+}
 
 function makeState(overrides: Partial<SuccessState> = {}): SuccessState {
   const response = overrides.response ?? makeResponse();
@@ -49,6 +55,7 @@ beforeEach(() => {
   fetchSpy = vi.fn();
   vi.stubGlobal("fetch", fetchSpy);
   mapProps.current = null;
+  openStation.mockReset();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -402,11 +409,44 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
   const setUA = (ua: string) => Object.defineProperty(window.navigator, "userAgent", { value: ua, configurable: true });
   afterEach(() => setUA(originalUA));
 
-  it("Info apre il menu con Google Maps, Apple Maps e Waze, e si chiude con Esc", async () => {
+  it("«Info» apre il dettaglio stazione (Screen 3), non il menu di navigazione", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
-    await user.click(within(screen.getAllByTestId("station-card")[0]!).getByRole("button", { name: /Info su/ }));
+    const card = screen.getAllByTestId("station-card")[0]!;
 
+    await user.click(within(card).getByRole("button", { name: /Info su/ }));
+    expect(openStation).toHaveBeenCalledTimes(1);
+    expect(openStation.mock.calls[0]![0].station.id).toBe(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(within(screen.getAllByTestId("station-card")[1]!).getByRole("button", { name: /Info su/ }));
+    expect(openStation).toHaveBeenCalledTimes(2);
+    expect(openStation.mock.calls[1]![0].station.id).toBe(2);
+  });
+
+  it("il tap sulla scheda SELEZIONA la stazione e NON naviga: il dettaglio si apre solo da «Info»", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState()} />);
+    const card = screen.getAllByTestId("station-card")[1]!;
+
+    await user.click(card);
+    expect(card).toHaveAttribute("aria-current", "true");
+    expect(mapProps.current?.selectedId).toBe(2);
+    expect(openStation).not.toHaveBeenCalled();
+
+    card.focus();
+    await user.keyboard("{Enter}"); // anche da tastiera
+    expect(openStation).not.toHaveBeenCalled();
+  });
+
+  it("Naviga su desktop apre il menu di scelta con Google Maps, Apple Maps e Waze, che si chiude con Esc", async () => {
+    const user = userEvent.setup();
+    setUA("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<ResultsScreen state={makeState()} />);
+    await user.click(within(screen.getAllByTestId("station-card")[0]!).getByRole("button", { name: /Naviga verso/ }));
+
+    expect(open).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: "Apri in navigatore" });
     const links = within(dialog).getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual(["Google Maps", "Apple Maps", "Waze"]);
@@ -415,22 +455,9 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
       expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
     }
     expect(links[0]!.getAttribute("href")).toContain("destination=45.680000,9.050000");
-    // Nessuna sezione del dettaglio completo (Screen 3) in questa milestone.
-    expect(within(dialog).queryByText(/servizi|orari|bagni/i)).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("Naviga su desktop apre il menu di scelta", async () => {
-    const user = userEvent.setup();
-    setUA("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36");
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    render(<ResultsScreen state={makeState()} />);
-    await user.click(within(screen.getAllByTestId("station-card")[0]!).getByRole("button", { name: /Naviga verso/ }));
-
-    expect(open).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Apri in navigatore" })).toBeInTheDocument();
   });
 
   it("Naviga su iPhone apre Apple Maps, su Android Google Maps, direttamente", async () => {
@@ -451,10 +478,14 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
 
   it("i pulsanti della card non selezionano la stazione (non propagano il click)", async () => {
     const user = userEvent.setup();
+    vi.spyOn(window, "open").mockReturnValue(null);
     render(<ResultsScreen state={makeState()} />);
     const card = screen.getAllByTestId("station-card")[0]!;
     await user.click(within(card).getByRole("button", { name: /Info su/ }));
     expect(card).not.toHaveAttribute("aria-current");
+    await user.click(within(card).getByRole("button", { name: /Naviga verso/ }));
+    expect(card).not.toHaveAttribute("aria-current");
+    expect(mapProps.current?.selectedId).toBeNull();
   });
 });
 
@@ -500,7 +531,7 @@ describe("ResultsScreen — percorso con sosta (A→stazione→B)", () => {
     expect(String(fetchSpy.mock.calls[0]![0])).toContain(routeUrl(3));
   });
 
-  it("deselezionando (secondo tap sulla card, o tap sullo sfondo della mappa) il percorso viene rimosso", async () => {
+  it("deselezionando (secondo tap sulla card, tap sul pin selezionato o tap sullo sfondo della mappa) il percorso viene rimosso", async () => {
     fetchSpy.mockResolvedValue(okResponse(2));
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
@@ -508,13 +539,19 @@ describe("ResultsScreen — percorso con sosta (A→stazione→B)", () => {
 
     await user.click(card);
     await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
-    await user.click(card);
+    await user.click(card); // secondo tap sulla scheda
     expect(mapProps.current?.selectedId).toBeNull();
     expect(mapProps.current?.stopRoute).toBeNull();
 
     await user.click(card);
     await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
-    act(() => mapProps.current!.onDeselect());
+    act(() => mapProps.current!.onSelectStation(2)); // tap sul pin già selezionato
+    expect(mapProps.current?.selectedId).toBeNull();
+    expect(mapProps.current?.stopRoute).toBeNull();
+
+    await user.click(card);
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    act(() => mapProps.current!.onDeselect()); // tap sullo sfondo
     expect(mapProps.current?.selectedId).toBeNull();
     expect(mapProps.current?.stopRoute).toBeNull();
   });

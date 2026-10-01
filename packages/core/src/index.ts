@@ -14,3 +14,5 @@ export * from "./geo/detour";
 export * from "./geo/tiles";
 export * from "./fuel/liveStationPrices";
 export * from "./results/sortResults";
+
+export * from "./results/stationDetail";

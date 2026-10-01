@@ -136,3 +136,48 @@ export function ExternalIcon({ className = "" }: IconProps) {
     </svg>
   );
 }
+
+export function BackIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M19 12H5m0 0l6-6m-6 6l6 6" />
+    </svg>
+  );
+}
+
+export function BookmarkIcon({ className = "", filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} fill={filled ? "currentColor" : "none"} aria-hidden="true">
+      <path d="M6 4h12a1 1 0 011 1v15l-7-4.5L5 20V5a1 1 0 011-1z" />
+    </svg>
+  );
+}
+
+export function ShareIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <circle cx="18" cy="5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="19" r="2.5" />
+      <path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4" />
+    </svg>
+  );
+}
+
+export function CopyIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 012-2h9" />
+    </svg>
+  );
+}
+
+export function PinIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
+  );
+}

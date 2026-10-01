@@ -1,4 +1,5 @@
 import { createRouteProjector, type Coordinate, type NationalPrice } from "@routefuel/core";
+import type { StationPriceEntry } from "@routefuel/shared";
 import type { CorridorPriceRow, CorridorQuery, StationRepository } from "../../src/search/StationRepository";
 
 /** Estrae le coordinate da un WKT `LINESTRING(lon lat, ...)` generato da routeToWkt. */
@@ -22,7 +23,17 @@ export class InMemoryStationRepository implements StationRepository {
     private readonly rows: CorridorPriceRow[],
     private readonly national: NationalPrice | null = null,
     private readonly lastIngestionAt: Date | null = new Date("2026-09-28T07:00:00.000Z"),
+    /** Prezzi per stazione (tutte le combinazioni carburante × modalità) per il dettaglio. */
+    private readonly stationPrices: Record<number, StationPriceEntry[]> = {},
   ) {}
+
+  /** Ultima richiesta di getStationPrices, per le asserzioni. */
+  lastStationPricesQuery: { stationId: number; maxAgeHours: number } | null = null;
+
+  async getStationPrices(stationId: number, maxAgeHours: number): Promise<StationPriceEntry[]> {
+    this.lastStationPricesQuery = { stationId, maxAgeHours };
+    return this.stationPrices[stationId] ?? [];
+  }
 
   async findCorridorPrices(query: CorridorQuery): Promise<CorridorPriceRow[]> {
     this.lastQuery = query;

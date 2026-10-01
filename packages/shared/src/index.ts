@@ -193,6 +193,56 @@ export interface StationRouteResponse {
   geometry: Array<[number, number]>;
 }
 
+/** Un prezzo della stazione: una combinazione carburante × modalità (Self/Servito), dalla stessa fonte dei risultati. */
+export interface StationPriceEntry {
+  fuelType: SearchFuelType;
+  isSelf: boolean;
+  /** €/L. */
+  price: number;
+  /** ISO 8601, data di comunicazione del prezzo. */
+  communicatedAt: string;
+}
+
+/**
+ * Risposta di GET /search/:id/stations/:stationId — dettaglio di una stazione per quella ricerca (Screen 3).
+ * La deviazione è verificata col routing reale (riuso della cache o di una verifica già fatta); se il routing non è
+ * disponibile resta la stima geometrica e `detour.source` è `proxy`: il client deve mostrarla come stima.
+ */
+export interface StationDetailResponse {
+  searchId: string;
+  station: StationSummary;
+  /** Combinazione scelta nella ricerca (carburante e modalità), con il prezzo usato nei risultati. */
+  selected: {
+    fuelType: SearchFuelType;
+    isSelf: boolean;
+    servitoOnly: boolean;
+    price: number;
+    priceUpdatedAt: string;
+  };
+  /** Tutte le combinazioni carburante × modalità disponibili e fresche per la stazione (solo i 4 carburanti MVP). */
+  prices: StationPriceEntry[];
+  /** Litri della ricerca (V_refill). */
+  liters: number;
+  referencePrice: ReferencePriceInfo;
+  detour: { km: number; minutes: number; source: DetourSource };
+  impact: {
+    /** (P_avg − P_station) × litri, €. */
+    grossSavings: number;
+    /** Costo carburante + tempo della deviazione, €. */
+    detourCost: number;
+    /** Net Savings Index, €. */
+    netSavings: number;
+    /** Prezzo stazione − riferimento, €/L (negativo = più economica). */
+    priceDifferencePerLiter: number;
+    /** Stessa differenza in % del prezzo di riferimento. */
+    priceDifferencePercent: number;
+  };
+  /** Distanza one-way dal tracciato, km. */
+  lateralDistanceKm: number;
+  /** Posizione lungo il tracciato, km dall'origine. */
+  alongRouteKm: number;
+}
+
 export interface GeocodeSuggestion {
   id: string;
   /** Testo principale, es. "Via Roma 10". */

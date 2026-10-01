@@ -9,7 +9,7 @@ export interface SearchRouteOptions {
   searchRateLimitPerMinute: number;
   /** GET /search/:id: il client lo interroga a intervalli brevi finché il ricalcolo non termina. */
   pollRateLimitPerMinute?: number;
-  /** GET /search/:id/stations/:stationId/route: può costare una chiamata Directions (se non già in cache). */
+  /** GET /search/:id/stations/:stationId[/route]: possono costare una chiamata Directions (se non già in cache). */
   stationRouteRateLimitPerMinute?: number;
 }
 
@@ -21,6 +21,15 @@ export function registerSearchRoutes(app: FastifyInstance, options: SearchRouteO
       const body = searchRequestSchema.parse(request.body);
       const response = await options.service.search(body);
       reply.code(200).send(response);
+    },
+  );
+
+  app.get(
+    "/search/:id/stations/:stationId",
+    { config: { rateLimit: { max: options.stationRouteRateLimitPerMinute ?? 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { id, stationId } = stationRouteParamsSchema.parse(request.params);
+      reply.code(200).send(await options.service.getStationDetail(id, stationId));
     },
   );
 
