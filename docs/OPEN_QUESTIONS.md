@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo due punti; tutto il resto è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Aperti: i punti **7** e **11** e, dalla Milestone 3, i punti **12–15** (interpretazioni da confermare); tutto il resto è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -18,6 +18,18 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
+
+### 12. «Verificato MISE»: cosa si verifica davvero (M3)
+Il badge «Verificato MISE» nel dettaglio compare quando la **deviazione** è verificata col routing reale (`detour.source = "routing"`), come da specifica. Quello che viene da MISE sono i prezzi; la verifica della deviazione è di Mapbox Directions: l'etichetta può far pensare che sia MISE a garantire il percorso. **Raccomando** di lasciarla (ha un tooltip che lo spiega) o, se preferisci, di chiamarla «Verificato» / «Percorso verificato». Quale?
+
+### 13. Deep-link del navigatore: https invece di `maps://` e `comgooglemaps://` (M3)
+La specifica indicava `maps://` (iOS) e `comgooglemaps://` (Android). `comgooglemaps://` è lo schema di Google Maps **su iOS** e su Android non apre nulla; su Android Google Maps si apre con un link https (intent). Ho quindi mantenuto i link universali di M2 (Apple Maps su iOS, Google Maps su Android, menu altrove), che aprono comunque l'app se installata. **Raccomando** di non cambiare. Confermi?
+
+### 14. Screen 2: tap sulla scheda apre il dettaglio (M3)
+Per la specifica, tap sulla scheda e «Info» aprono Screen 3. Di conseguenza il tap sulla scheda non fa più da interruttore di selezione: la seleziona (e porta sulla mappa il percorso con sosta) **e** apre il dettaglio; per deselezionare si tocca il pin selezionato o lo sfondo della mappa. Il menu «Apri in navigatore» resta dietro «Naviga» su desktop. **Raccomando** di tenere così; se preferisci che la scheda selezioni soltanto e il dettaglio si apra solo da «Info», è una modifica piccola. Quale?
+
+### 15. Matrice prezzi: quali combinazioni mostrare (M3)
+Il listino mostra le combinazioni carburante × modalità dei **quattro carburanti MVP** con prezzo più recente della soglia di freschezza della ricerca (72 ore di default); HVO e carburanti non classificati non compaiono, e un prezzo più vecchio della soglia non viene mostrato come attuale. **Raccomando** di tenere così. Confermi?
 
 ---
 

@@ -140,19 +140,35 @@ Branch: `feat/milestone-2-results-map`.
 11. **Contrasto esteso a «≤14px»** (approvato): `text-primary` → `text-on-primary-fixed-variant`, `text-secondary` → `text-on-secondary-fixed-variant` sul testo piccolo, e indirizzo e «Benzina Self» delle card da `text-outline` a `text-on-surface-variant`; regola in `DESIGN.md`. Resta accettato, e tracciato in M7, il testo bianco su `bg-primary`. Un test impedisce i tre colori deboli su testo ≤14px.
 
 ---
-## Milestone 3 — Screen 3: Dettaglio Stazione
+## Milestone 3 — Screen 3: Dettaglio Stazione ✅ implementata (in revisione)
 
-**Contenuto:**
-- Pagina dettaglio con meta stazione, bento impatto viaggio, matrice prezzi Self/Servito.
-- Deviazione ricalcolata con routing reale **on-demand ogni volta che si apre Screen 3** (l'endpoint `GET /search/:id/stations/:stationId/route` esiste già dalla revisione di M2 e restituisce anche `detourKm`/`detourMinutes` coerenti) per una stazione (riuso della cache se già verificata come parte della top-5 nella stessa ricerca; altrimenti singola chiamata con breve stato di caricamento) — Screen 3 non mostra mai una stima proxy grezza come se fosse un dato definitivo.
-- CTA "Apri nel Navigatore" con deep-link: rilevamento automatico OS (iOS→Apple Maps, Android→Google Maps) come scelta di default, con menu esplicito sempre raggiungibile (incluso Waze) per scegliere altrimenti.
-- **Rimozione totale (nessun placeholder visibile)** di: pill uscita autostradale specifica, badge "Aperto ora", griglia servizi/amenities, telefono, numero pompe (nessuno di questi campi esiste nei CSV MIMIT). Bookmark e Share **mantenuti** (azioni client-side pure: `localStorage` e Web Share API, non richiedono dati MIMIT).
+Branch: `feat/milestone-3-station-detail`.
+
+**Contenuto (come implementato):**
+- **Rotta** `/station/:searchId/:stationId` (`StationDetailScreen`). Si apre da Screen 2 con il tap sulla scheda o su **Info**; funziona anche con un indirizzo diretto, finché la ricerca è viva sul server (TTL 15 minuti). Header a pila (indietro, brand centrato, salva, condividi, avatar) con safe-area; nessuna barra inferiore.
+- **Meta stazione:** iniziali del brand (da `Bandiera`), nome, indirizzo completo con **Copia** (Clipboard API, con riserva `execCommand`), pill del tipo di impianto (Stradale/Autostradale), gestore, badge **«Verificato MISE»** se la deviazione è verificata col routing reale, **«Stima geometrica»** altrimenti.
+- **Impatto sul tuo viaggio** (bento a 3 tile): deviazione (`+X,X km` / `+Y min guida`, con `~` e «stima» se proxy), risparmio netto su `V_refill` litri («Non conviene» se ≤ 0) e differenziale vs media in €/L e in %. Sotto: prezzo di riferimento con il suo livello e risparmio lordo − costo della deviazione.
+- **Listino carburanti:** una tile per ogni combinazione carburante × modalità con prezzo recente (benzina, diesel, GPL, metano; Self/Servito), con la combinazione scelta in ricerca evidenziata.
+- **CTA flottante «Apri nel Navigatore»** con sfocatura progressiva e safe-area: iOS → Apple Maps, Android → Google Maps, altrove menu con Google Maps, Apple Maps e Waze; il pulsante secondario apre sempre il menu. **Salva** (localStorage) e **Condividi** (Web Share API, con copia negli appunti come riserva).
+- **Rimossi, senza placeholder:** pill uscita autostradale, badge «Aperto ora/24-7», griglia servizi, telefono, numero pompe, «SCELTA OTTIMALE» e «Segnala prezzo errato» del mockup (non derivabili dai dati o fuori scope). Un test verifica l'assenza di queste sezioni nel markup.
+- **Backend:** nuovo `GET /search/:id/stations/:stationId` (contratto `StationDetailResponse` in `packages/shared`): stazione, combinazione scelta, tutti i prezzi, litri, riferimento, deviazione con `source`, impatto e posizione. Se la stazione è già stata verificata dal ricalcolo in background riusa quel valore (nessuna chiamata); altrimenti **una** chiamata Directions on-demand (cache, kill switch, rate limit 30/min); se il routing non è disponibile risponde comunque 200 con la stima e `source: "proxy"`. Nuovo `getStationPrices` nel repository (PostGIS e test). In `packages/core`: `computeStationDetail` e `resolveDetour`.
+- **Screen 2 (modifica minima richiesta):** tap su scheda e «Info» aprono Screen 3 (la scheda viene prima selezionata, così tornando indietro è evidenziata con il suo percorso con sosta); il menu «Apri in navigatore» resta dietro «Naviga» su desktop. I Risultati restano montati (nascosti) durante il dettaglio: tornando indietro ordinamento, filtri, selezione, scorrimento e posizione della mappa sono quelli di prima.
 
 **Criteri di accettazione:**
-- [ ] Nessun dato inventato: ogni campo mostrato è tracciabile a una colonna reale dei CSV MIMIT o a un calcolo di `packages/core`.
-- [ ] Aprire Screen 3 per qualunque stazione mostra sempre una deviazione verificata da routing reale, non una stima.
-- [ ] CTA naviga apre l'app esterna scelta (o menu di scelta) con coordinate corrette.
-- [ ] Nessuna sezione UI per uscita autostradale/orari/servizi/telefono/numero pompe è presente nel markup.
+- [x] Screen 3 mostra una deviazione verificata col routing reale, o il badge «Stima geometrica» esplicito se il routing non è disponibile (test API e web; verificato nel browser con una stazione fuori dalle prime 5: +2,6 km / +4 min on-demand).
+- [x] Nessun dato inventato: ogni campo è una colonna dei CSV MIMIT (nome, bandiera, gestore, indirizzo, comune, provincia, tipo impianto, prezzi, data) o un calcolo di `packages/core` (deviazione, risparmio, differenziale).
+- [x] «Apri nel Navigatore» apre l'app corretta (o il menu di scelta) con le coordinate della stazione (test con user agent simulati).
+- [x] Nessuna sezione per uscita autostradale, orari, servizi, telefono o numero di pompe nel markup (test).
+- [x] Salva e Condividi funzionano (localStorage con riserva in memoria; Web Share API con riserva di copia).
+- [x] Indietro torna a `/results` con ricerca, ordinamento, filtri e selezione preservati (test di integrazione e verifica nel browser).
+- [x] Typecheck pulito; test a fine milestone: core 152, api 187 (+21 sul database), web 153.
+
+**Decisioni e affinamenti emersi in implementazione** (interpretazioni da confermare in `OPEN_QUESTIONS.md`, punti 12–15):
+1. **`detourSource`:** il contratto usa `"routing"` (non `"verified"`); il badge «Verificato MISE» compare quando vale `"routing"`.
+2. **Deep-link:** si mantengono i link universali https di M2 (Apple Maps e Google Maps aprono comunque l'app se installata). `comgooglemaps://` è lo schema di Google Maps su iOS e non funziona su Android; `maps://` non aggiunge nulla ai link https.
+3. **Matrice prezzi:** solo i quattro carburanti dell'MVP e i prezzi più recenti della soglia di freschezza della ricerca (come in Screen 2); HVO e «altro» non compaiono.
+4. **Iniziali del brand:** nessuna tabella di loghi (come in M2); resta in M7.
+5. **Un bug trovato solo nel browser reale:** due `useEffect` con corpo a espressione restituivano il valore di `scrollTo`/`setSaved` e React lo trattava come funzione di pulizia (schermata bianca); corretti e coperti da un test.
 
 ---
 
