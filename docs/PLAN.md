@@ -140,7 +140,7 @@ Branch: `feat/milestone-2-results-map`.
 11. **Contrasto esteso a «≤14px»** (approvato): `text-primary` → `text-on-primary-fixed-variant`, `text-secondary` → `text-on-secondary-fixed-variant` sul testo piccolo, e indirizzo e «Benzina Self» delle card da `text-outline` a `text-on-surface-variant`; regola in `DESIGN.md`. Resta accettato, e tracciato in M7, il testo bianco su `bg-primary`. Un test impedisce i tre colori deboli su testo ≤14px.
 
 ---
-## Milestone 3 — Screen 3: Dettaglio Stazione ✅ implementata (in revisione)
+## Milestone 3 — Screen 3: Dettaglio Stazione ✅ confermata e integrata in `main` (01/10/2026, tag `m3`)
 
 Branch: `feat/milestone-3-station-detail`.
 
@@ -233,6 +233,16 @@ Branch: `feat/milestone-3-station-detail`.
 - Altre difformità dai mockup emerse in revisione (scelte già confermate per M2: `OPEN_QUESTIONS.md`, «Decisioni risolte», punto 16).
 
 **Criteri di accettazione:** da definire a inizio milestone, confrontando schermata per schermata con i mockup in `mockup/`.
+
+---
+
+## Infrastruttura trasversale
+
+**CI (GitHub Actions)** — `.github/workflows/ci.yml`, introdotta dopo M3:
+- **Trigger:** `pull_request` e `push` su `main` e `feat/*`.
+- **Un solo job** (`ubuntu-latest`, timeout 15 min): checkout → pnpm (versione da `packageManager`, 12.6.0) → Node 20 con cache dello store pnpm → `pnpm install --frozen-lockfile` → `pnpm test` → `pnpm typecheck`. `pnpm test` è la suite ermetica (zero rete, zero database); i test su PostgreSQL (`pnpm test:db`) restano in locale.
+- **Vincolo di costo (vincolante):** il repository è **privato**, quindi vale il tetto di **2.000 minuti/mese** del piano free. Per questo: **nessun altro workflow e nessun job extra** (niente matrici, niente servizi database, niente deploy in CI). `concurrency` annulla la run precedente dello stesso riferimento quando arriva un nuovo push. Nota: una pull request aperta da un branch `feat/*` fa partire due run (push e `pull_request`); se i minuti scarseggiano si può togliere il trigger `push` su `feat/*` e tenere solo `pull_request`.
+- Qualsiasi nuova automazione va valutata contro questo budget prima di essere aggiunta.
 
 ---
 
