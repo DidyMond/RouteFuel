@@ -121,16 +121,12 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
     [visible, bestId, request.fuelType],
   );
 
-  // Toccare una scheda (o «Info») apre il dettaglio della stazione; prima la seleziona, così tornando indietro
-  // la stazione resta evidenziata sulla mappa con il suo percorso con sosta.
-  const openFromCard = useCallback(
-    (result: StationResult) => {
-      selectionFromMap.current = false;
-      setSelectedId(result.station.id);
-      onOpenStation(result);
-    },
-    [onOpenStation],
-  );
+  // Toccare una scheda la seleziona (pin evidenziato e percorso con sosta); toccarla di nuovo la deseleziona.
+  // Il dettaglio della stazione (Screen 3) si apre solo da «Info».
+  const selectFromCard = useCallback((id: number) => {
+    selectionFromMap.current = false;
+    setSelectedId((current) => (current === id ? null : id));
+  }, []);
 
   const deselect = useCallback(() => setSelectedId(null), []);
 
@@ -266,7 +262,8 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
                   fuelType={request.fuelType}
                   best={result.station.id === bestId}
                   selected={result.station.id === selectedId}
-                  onOpen={openFromCard}
+                  onSelect={selectFromCard}
+                  onInfo={onOpenStation}
                   onNavigate={navigate}
                 />
               ))}

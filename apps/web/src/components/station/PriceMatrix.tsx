@@ -1,6 +1,7 @@
 import type { SearchFuelType, StationDetailResponse } from "@routefuel/shared";
 import { formatPrice, formatShortDate } from "../../lib/format";
 import { fuelLabel } from "../../lib/stationView";
+import { VerifiedIcon } from "../icons";
 
 type Selected = StationDetailResponse["selected"];
 
@@ -9,16 +10,23 @@ const isSelectedCombination = (selected: Selected, fuelType: SearchFuelType, isS
 
 /**
  * Listino della stazione: una tile per ogni combinazione carburante × modalità con prezzo recente (dati MIMIT).
- * La combinazione scelta nella ricerca è evidenziata. Nessuna tile per ciò che la stazione non vende.
+ * La combinazione scelta nella ricerca è evidenziata. Nessuna tile per ciò che la stazione non vende. Il badge
+ * «Verificato MISE» attribuisce i prezzi (fonte ufficiale Osservaprezzi): non riguarda la deviazione.
  */
 export function PriceMatrix({ detail }: { detail: StationDetailResponse }) {
   const { prices, selected } = detail;
 
   return (
     <section aria-label="Listino carburanti" className="rounded-lg bg-surface-container-lowest shadow-sm border border-outline-variant/30 p-space-lg flex flex-col gap-space-md">
-      <div className="flex items-baseline justify-between gap-space-sm">
+      <div className="flex items-center justify-between gap-space-sm">
         <h2 className="text-headline-sm font-headline-sm text-on-surface">Listino carburanti</h2>
-        <span className="text-body-sm font-body-sm text-on-surface-variant text-right">Prezzi MIMIT Osservaprezzi</span>
+        <span
+          className="inline-flex items-center gap-1 h-[26px] px-space-md rounded-full bg-primary/10 text-on-primary-fixed-variant text-label-md font-label-md whitespace-nowrap"
+          title="Prezzi dal sito ufficiale Osservaprezzi del MIMIT (Ministero delle Imprese e del Made in Italy)"
+        >
+          <VerifiedIcon className="w-3.5 h-3.5" />
+          Verificato MISE
+        </span>
       </div>
 
       {prices.length === 0 ? (

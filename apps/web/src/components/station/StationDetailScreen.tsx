@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useStationDetail } from "../../hooks/useStationDetail";
 import { isStationSaved, toggleSavedStation } from "../../lib/bookmarks";
 import { formatKm, formatPrice } from "../../lib/format";
-import { launchNavigation, navigationLink } from "../../lib/navigation";
+import { navigationLink } from "../../lib/navigation";
 import { shareStation } from "../../lib/share";
 import { fuelModeLabel } from "../../lib/stationView";
 import { SpinnerIcon } from "../icons";
@@ -113,13 +113,6 @@ export function StationDetailScreen() {
     if (outcome === "failed") showNotice("Condivisione non riuscita");
   };
 
-  const navigateNow = () => {
-    if (!detail) return;
-    const { station } = detail;
-    const opened = launchNavigation({ name: station.nomeImpianto, lat: station.lat, lon: station.lon });
-    if (!opened) setMenuOpen(true); // desktop o piattaforma sconosciuta: menu con Google Maps, Apple Maps e Waze
-  };
-
   return (
     <div className="flex-1 bg-surface">
       <StationHeader onBack={goBack} saved={saved} onToggleSaved={toggleSaved} onShare={share} actionsDisabled={detail === null} />
@@ -137,7 +130,7 @@ export function StationDetailScreen() {
         )}
         {detail && (
           <>
-            <StationMeta station={detail.station} detourSource={detail.detour.source} />
+            <StationMeta station={detail.station} />
             <ImpactBento detail={detail} />
             <PriceMatrix detail={detail} />
             <p className="text-body-sm font-body-sm text-on-surface-variant text-center px-gutter tabular-nums">
@@ -147,7 +140,7 @@ export function StationDetailScreen() {
         )}
       </main>
 
-      <NavigateBar stationName={detail?.station.nomeImpianto ?? "stazione"} onNavigate={navigateNow} onChooseApp={() => setMenuOpen(true)} disabled={detail === null} />
+      <NavigateBar stationName={detail?.station.nomeImpianto ?? "stazione"} onNavigate={() => setMenuOpen(true)} disabled={detail === null} />
 
       {menuOpen && detail && (
         <NavigateSheet

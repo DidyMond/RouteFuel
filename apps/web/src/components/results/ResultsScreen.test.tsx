@@ -409,7 +409,7 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
   const setUA = (ua: string) => Object.defineProperty(window.navigator, "userAgent", { value: ua, configurable: true });
   afterEach(() => setUA(originalUA));
 
-  it("Info e tap sulla scheda aprono il dettaglio stazione (Screen 3), non più il menu di navigazione", async () => {
+  it("«Info» apre il dettaglio stazione (Screen 3), non il menu di navigazione", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
     const card = screen.getAllByTestId("station-card")[0]!;
@@ -419,17 +419,24 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
     expect(openStation.mock.calls[0]![0].station.id).toBe(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByTestId("station-card")[1]!);
+    await user.click(within(screen.getAllByTestId("station-card")[1]!).getByRole("button", { name: /Info su/ }));
     expect(openStation).toHaveBeenCalledTimes(2);
     expect(openStation.mock.calls[1]![0].station.id).toBe(2);
   });
 
-  it("aprendo il dettaglio la stazione resta selezionata: tornando indietro è evidenziata sulla mappa", async () => {
+  it("il tap sulla scheda SELEZIONA la stazione e NON naviga: il dettaglio si apre solo da «Info»", async () => {
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
-    await user.click(screen.getAllByTestId("station-card")[1]!);
+    const card = screen.getAllByTestId("station-card")[1]!;
+
+    await user.click(card);
+    expect(card).toHaveAttribute("aria-current", "true");
     expect(mapProps.current?.selectedId).toBe(2);
-    expect(screen.getAllByTestId("station-card")[1]).toHaveAttribute("aria-current", "true");
+    expect(openStation).not.toHaveBeenCalled();
+
+    card.focus();
+    await user.keyboard("{Enter}"); // anche da tastiera
+    expect(openStation).not.toHaveBeenCalled();
   });
 
   it("Naviga su desktop apre il menu di scelta con Google Maps, Apple Maps e Waze, che si chiude con Esc", async () => {
@@ -469,14 +476,16 @@ describe("ResultsScreen — Info e Naviga (deep-link)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("«Naviga» non apre il dettaglio e non seleziona la stazione (non propaga il click)", async () => {
+  it("i pulsanti della card non selezionano la stazione (non propagano il click)", async () => {
     const user = userEvent.setup();
     vi.spyOn(window, "open").mockReturnValue(null);
     render(<ResultsScreen state={makeState()} />);
     const card = screen.getAllByTestId("station-card")[0]!;
-    await user.click(within(card).getByRole("button", { name: /Naviga verso/ }));
-    expect(openStation).not.toHaveBeenCalled();
+    await user.click(within(card).getByRole("button", { name: /Info su/ }));
     expect(card).not.toHaveAttribute("aria-current");
+    await user.click(within(card).getByRole("button", { name: /Naviga verso/ }));
+    expect(card).not.toHaveAttribute("aria-current");
+    expect(mapProps.current?.selectedId).toBeNull();
   });
 });
 
@@ -522,11 +531,17 @@ describe("ResultsScreen — percorso con sosta (A→stazione→B)", () => {
     expect(String(fetchSpy.mock.calls[0]![0])).toContain(routeUrl(3));
   });
 
-  it("deselezionando (tap sul pin selezionato, o tap sullo sfondo della mappa) il percorso viene rimosso", async () => {
+  it("deselezionando (secondo tap sulla card, tap sul pin selezionato o tap sullo sfondo della mappa) il percorso viene rimosso", async () => {
     fetchSpy.mockResolvedValue(okResponse(2));
     const user = userEvent.setup();
     render(<ResultsScreen state={makeState()} />);
     const card = screen.getAllByTestId("station-card")[1]!;
+
+    await user.click(card);
+    await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));
+    await user.click(card); // secondo tap sulla scheda
+    expect(mapProps.current?.selectedId).toBeNull();
+    expect(mapProps.current?.stopRoute).toBeNull();
 
     await user.click(card);
     await waitFor(() => expect(mapProps.current?.stopRoute).toEqual(STOP_GEOMETRY));

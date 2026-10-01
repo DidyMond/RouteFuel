@@ -1,8 +1,8 @@
-import type { DetourSource, StationSummary } from "@routefuel/shared";
+import type { StationSummary } from "@routefuel/shared";
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../../lib/clipboard";
 import { brandInitials } from "../../lib/stationView";
-import { CopyIcon, InfoIcon, PinIcon, VerifiedIcon } from "../icons";
+import { CopyIcon, PinIcon } from "../icons";
 
 /** Indirizzo completo come si scrive su un'etichetta: «Via Roma 1, Bregnano (CO)». */
 export function fullAddress(station: StationSummary): string {
@@ -12,11 +12,11 @@ export function fullAddress(station: StationSummary): string {
 }
 
 /**
- * Intestazione della stazione: iniziali del brand, nome, indirizzo completo con «Copia», badge sulla deviazione e
- * pill del tipo di impianto. Solo dati presenti nei CSV MIMIT (bandiera, gestore, nome, indirizzo, tipo impianto):
+ * Intestazione della stazione: iniziali del brand, nome, indirizzo completo con «Copia», pill del tipo di impianto
+ * (a sinistra) e gestore (a destra, troncato). Solo dati presenti nei CSV MIMIT (bandiera, gestore, nome, indirizzo, tipo impianto):
  * niente uscita autostradale, orari, servizi, telefono o numero di pompe.
  */
-export function StationMeta({ station, detourSource }: { station: StationSummary; detourSource: DetourSource }) {
+export function StationMeta({ station }: { station: StationSummary }) {
   const address = fullAddress(station);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -27,8 +27,6 @@ export function StationMeta({ station, detourSource }: { station: StationSummary
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopy("idle"), 2500);
   };
-
-  const verified = detourSource === "routing";
 
   return (
     <section aria-label="Stazione" className="rounded-lg bg-surface-container-lowest shadow-sm border border-outline-variant/30 p-space-lg flex flex-col gap-space-md">
@@ -66,29 +64,14 @@ export function StationMeta({ station, detourSource }: { station: StationSummary
         {copy === "failed" && "Copia non riuscita: seleziona e copia l'indirizzo a mano"}
       </p>
 
-      <div className="flex flex-wrap items-center gap-space-sm">
-        {verified ? (
-          <span
-            className="inline-flex items-center gap-1 h-[26px] px-space-md rounded-full bg-primary/10 text-on-primary-fixed-variant text-label-md font-label-md"
-            title="Prezzi dal sito ufficiale Osservaprezzi (MIMIT); deviazione verificata sul percorso reale"
-          >
-            <VerifiedIcon className="w-3.5 h-3.5" />
-            Verificato MISE
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1 h-[26px] px-space-md rounded-full bg-surface-container-high text-on-surface-variant text-label-md font-label-md"
-            title="La deviazione è una stima geometrica: il percorso reale non è stato verificato"
-          >
-            <InfoIcon className="w-3.5 h-3.5" />
-            Stima geometrica
-          </span>
-        )}
-        <span className="inline-flex items-center h-[26px] px-space-md rounded-full bg-secondary/10 text-on-secondary-fixed-variant text-label-md font-label-md">
-          {station.tipoImpianto === "autostradale" ? "Autostradale" : "Stradale"}
+      <div className="flex items-center justify-between gap-space-md min-w-0">
+        <span className="inline-flex items-center h-[26px] px-space-md rounded-full bg-secondary/10 text-on-secondary-fixed-variant text-label-md font-label-md shrink-0">
+          {station.tipoImpianto === "autostradale" ? "Autostrada" : "Stradale"}
         </span>
         {station.gestore.trim() && (
-          <span className="text-label-md font-label-md text-on-surface-variant truncate max-w-full">Gestore {station.gestore.trim()}</span>
+          <span title={`Gestore ${station.gestore.trim()}`} className="min-w-0 truncate text-right text-label-md font-label-md text-on-surface-variant">
+            Gestore {station.gestore.trim()}
+          </span>
         )}
       </div>
     </section>

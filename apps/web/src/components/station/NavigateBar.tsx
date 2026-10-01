@@ -1,19 +1,17 @@
-import { MoreIcon, NavigateIcon } from "../icons";
+import { NavigateIcon } from "../icons";
 
 interface NavigateBarProps {
   stationName: string;
-  /** Apre la navigazione esterna (app scelta in base al sistema; null → l'host mostra il menu). */
+  /** Apre il menu «Apri in navigatore» (app consigliata per il sistema in prima posizione, poi le altre). */
   onNavigate: () => void;
-  /** Apre il menu con Google Maps, Apple Maps e Waze. */
-  onChooseApp: () => void;
   disabled?: boolean;
 }
 
 /**
  * CTA flottante «Apri nel Navigatore» con sfocatura progressiva sotto (il contenuto scorre e sfuma dietro). Safe-area
- * aware. Il pulsante secondario apre sempre il menu di scelta dell'app, qualunque sia il sistema.
+ * aware. Apre sempre il menu di scelta: l'app del sistema è «Consigliata», le altre sono sotto.
  */
-export function NavigateBar({ stationName, onNavigate, onChooseApp, disabled = false }: NavigateBarProps) {
+export function NavigateBar({ stationName, onNavigate, disabled = false }: NavigateBarProps) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 pointer-events-none">
       <div data-testid="progressive-blur" aria-hidden="true" className="progressive-blur absolute inset-x-0 bottom-0 h-40">
@@ -32,15 +30,6 @@ export function NavigateBar({ stationName, onNavigate, onChooseApp, disabled = f
           >
             <NavigateIcon className="w-5 h-5" />
             Apri nel Navigatore
-          </button>
-          <button
-            type="button"
-            onClick={onChooseApp}
-            disabled={disabled}
-            aria-label="Scegli l'app di navigazione"
-            className="w-12 h-12 shrink-0 rounded-full bg-surface-container-low text-on-surface flex items-center justify-center border border-outline-variant/40 hover:border-primary transition-colors active:scale-95 disabled:opacity-50"
-          >
-            <MoreIcon />
           </button>
         </div>
       </div>

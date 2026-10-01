@@ -181,13 +181,3 @@ export function PinIcon({ className = "" }: IconProps) {
     </svg>
   );
 }
-
-export function MoreIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
-      <circle cx="5" cy="12" r="1.2" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
-      <circle cx="19" cy="12" r="1.2" fill="currentColor" />
-    </svg>
-  );
-}

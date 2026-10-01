@@ -79,3 +79,23 @@ export function launchNavigation(target: NavigationTarget, env?: Partial<LaunchE
   if (link) open(link.url, "_blank", "noopener,noreferrer");
   return link;
 }
+
+export interface NavigationOptions {
+  /** Tutte le app, con quella consigliata per il sistema rilevato (se c'è) in prima posizione. */
+  links: NavigationLink[];
+  /** App di sistema consigliata: Apple Maps su iOS, Google Maps su Android, null altrove. */
+  recommended: NavigationApp | null;
+}
+
+/**
+ * Le opzioni del menu «Apri nel Navigatore»: l'app predefinita del sistema rilevato va per prima ed è «consigliata»;
+ * le altre seguono nell'ordine Google Maps, Apple Maps, Waze. Un tap sul consigliato equivale al lancio diretto.
+ */
+export function orderedNavigationLinks(target: NavigationTarget, env?: Partial<Pick<LaunchEnvironment, "userAgent" | "maxTouchPoints">>): NavigationOptions {
+  const userAgent = env?.userAgent ?? navigator.userAgent;
+  const maxTouchPoints = env?.maxTouchPoints ?? navigator.maxTouchPoints;
+  const recommended = primaryNavigationLink(detectPlatform(userAgent, maxTouchPoints), target)?.app ?? null;
+  const links = navigationLinks(target);
+  if (!recommended) return { links, recommended: null };
+  return { links: [...links.filter((l) => l.app === recommended), ...links.filter((l) => l.app !== recommended)], recommended };
+}

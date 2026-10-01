@@ -5,8 +5,9 @@ import { RouteIcon, SavingsIcon } from "../icons";
 
 /**
  * «Impatto sul tuo viaggio»: tre tile (deviazione, risparmio netto, differenza dal prezzo di riferimento). Ogni numero
- * arriva dal server (`computeStationDetail` in `packages/core`): qui si formatta soltanto. La deviazione stimata porta
- * la tilde e la scritta «stima»: non si presenta mai come verificata.
+ * arriva dal server (`computeStationDetail` in `packages/core`): qui si formatta soltanto. Il tile della deviazione dice
+ * sempre da dove viene il dato: «Percorso verificato» (routing Mapbox) oppure «Stima geometrica» con la tilde; una
+ * stima non si presenta mai come verificata.
  */
 export function ImpactBento({ detail }: { detail: StationDetailResponse }) {
   const { detour, impact, referencePrice, liters } = detail;
@@ -34,7 +35,17 @@ export function ImpactBento({ detail }: { detail: StationDetailResponse }) {
           <span className="text-label-md font-label-md tabular-nums text-on-secondary-fixed-variant">
             {approx}+{formatDetourMinutes(detour.minutes)} guida
           </span>
-          {estimated && <span className="text-label-sm font-label-sm text-on-surface-variant">stima</span>}
+          <span
+            data-testid="detour-source"
+            title={
+              estimated
+                ? "Stima geometrica: il percorso reale non è stato verificato (routing non disponibile), i valori sono approssimati"
+                : "Deviazione calcolata sul percorso reale A→stazione→B con il routing Mapbox Directions"
+            }
+            className={`text-label-sm font-label-sm leading-tight break-words ${estimated ? "text-on-surface-variant" : "text-on-primary-fixed-variant"}`}
+          >
+            {estimated ? "Stima geometrica" : "Percorso verificato"}
+          </span>
         </div>
 
         <div

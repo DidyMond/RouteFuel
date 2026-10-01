@@ -60,12 +60,12 @@ const cardIds = () => screen.getAllByTestId("station-card").map((el) => Number(e
 const resultsWrapper = () => screen.getByTestId("bottom-sheet").parentElement!.parentElement!;
 
 describe("App — dal dettaglio stazione ai Risultati", () => {
-  it("tap su una scheda apre il dettaglio (chiamata on-demand) e nasconde header globale e barra inferiore", async () => {
+  it("«Info» apre il dettaglio (chiamata on-demand) e nasconde header globale e barra inferiore", async () => {
     const user = userEvent.setup();
     renderApp();
     expect(screen.getByRole("navigation", { name: "Navigazione principale" })).toBeInTheDocument();
 
-    await user.click(screen.getAllByTestId("station-card")[1]!);
+    await user.click(within(screen.getAllByTestId("station-card")[1]!).getByRole("button", { name: /Info su/ }));
     expect(await screen.findByRole("heading", { name: "1858 BREGNANO" })).toBeInTheDocument();
 
     const detailCalls = fetchSpy.mock.calls.map((c) => String(c[0])).filter((u) => u.endsWith("/stations/2"));
@@ -75,12 +75,14 @@ describe("App — dal dettaglio stazione ai Risultati", () => {
     expect(resultsWrapper()).toHaveClass("hidden");
   });
 
-  it("«Info» apre lo stesso dettaglio", async () => {
+  it("il tap sulla scheda seleziona soltanto: nessuna navigazione verso il dettaglio", async () => {
     const user = userEvent.setup();
     renderApp();
-    await user.click(within(screen.getAllByTestId("station-card")[0]!).getByRole("button", { name: /Info su/ }));
-    await screen.findByRole("heading", { name: "1858 BREGNANO" });
-    expect(fetchSpy.mock.calls.some((c) => String(c[0]).endsWith("/search/s1/stations/1"))).toBe(true);
+    await user.click(screen.getAllByTestId("station-card")[1]!);
+    expect(screen.getAllByTestId("station-card")[1]).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("heading", { name: "1858 BREGNANO" })).not.toBeInTheDocument();
+    expect(fetchSpy.mock.calls.some((c) => /\/stations\/\d+$/.test(String(c[0])))).toBe(false); // solo il percorso con sosta (/route)
+    expect(resultsWrapper()).not.toHaveClass("hidden");
   });
 
   it("indietro riporta ai Risultati con ordinamento, filtri, selezione e mappa preservati (nessun rimontaggio)", async () => {
@@ -94,7 +96,8 @@ describe("App — dal dettaglio stazione ai Risultati", () => {
     const order = cardIds();
     expect(order).toEqual([2, 3, 1]); // «Minor deviazione»
 
-    await user.click(screen.getAllByTestId("station-card")[0]!);
+    await user.click(screen.getAllByTestId("station-card")[0]!); // selezione
+    await user.click(within(screen.getAllByTestId("station-card")[0]!).getByRole("button", { name: /Info su/ }));
     await screen.findByRole("heading", { name: "1858 BREGNANO" });
     await user.click(screen.getByRole("button", { name: "Torna ai risultati" }));
 

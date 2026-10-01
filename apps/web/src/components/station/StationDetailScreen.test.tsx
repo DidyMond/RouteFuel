@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BOOKMARKS_KEY, resetBookmarkMemory } from "../../lib/bookmarks";
+import { navigationLink } from "../../lib/navigation";
 import { makeDetail } from "../../test/fixtures";
 import { StationDetailScreen } from "./StationDetailScreen";
 
@@ -56,6 +57,8 @@ describe("StationDetailScreen — contenuto", () => {
     expect(screen.getByText("AE")).toBeInTheDocument(); // iniziali da Bandiera
     expect(screen.getByText("Stradale")).toBeInTheDocument();
     expect(screen.getByText("Gestore ENIMOOV S.P.A.")).toBeInTheDocument();
+    // nessun badge sulla deviazione nella meta: la provenienza sta nel tile «Deviazione»
+    expect(within(screen.getByRole("region", { name: "Stazione" })).queryByText(/Verificato|Stima geometrica/)).not.toBeInTheDocument();
   });
 
   it("bento «Impatto sul tuo viaggio»: deviazione, risparmio netto sui litri e differenziale vs media", async () => {
@@ -144,36 +147,96 @@ describe("StationDetailScreen — contenuto", () => {
     expect(screen.getByText("Nessun prezzo recente disponibile per questa stazione.")).toBeInTheDocument();
   });
 
-  it("pill del tipo di impianto: «Autostradale» per le stazioni autostradali", async () => {
+  it("pill del tipo di impianto: «Autostrada» per le stazioni autostradali", async () => {
     respondWith(makeDetail({ station: { ...makeDetail().station, tipoImpianto: "autostradale" } }));
     renderScreen();
     await loaded();
-    expect(screen.getByText("Autostradale")).toBeInTheDocument();
+    expect(screen.getByText("Autostrada")).toBeInTheDocument();
     expect(screen.queryByText("Stradale")).not.toBeInTheDocument();
+  });
+
+  it("riga sotto l'indirizzo: pill del tipo a sinistra (non si restringe), «Gestore …» a destra e troncato", async () => {
+    respondWith(makeDetail({ station: { ...makeDetail().station, gestore: "UN GESTORE CON UNA RAGIONE SOCIALE MOLTO MOLTO LUNGA S.R.L." } }));
+    renderScreen();
+    await loaded();
+
+    const pill = screen.getByText("Stradale");
+    const gestore = screen.getByText(/^Gestore UN GESTORE/);
+    expect(pill.parentElement).toBe(gestore.parentElement); // stessa riga
+    expect(pill.parentElement).toHaveClass("justify-between");
+    expect(pill.nextElementSibling).toBe(gestore); // pill prima (sinistra), gestore dopo (destra)
+    expect(pill).toHaveClass("shrink-0");
+    expect(gestore).toHaveClass("truncate", "text-right", "min-w-0");
+    expect(gestore).toHaveAttribute("title", "Gestore UN GESTORE CON UNA RAGIONE SOCIALE MOLTO MOLTO LUNGA S.R.L.");
+  });
+
+  it("senza gestore la riga mostra solo la pill", async () => {
+    respondWith(makeDetail({ station: { ...makeDetail().station, gestore: "  " } }));
+    renderScreen();
+    await loaded();
+    expect(screen.queryByText(/^Gestore/)).not.toBeInTheDocument();
+    expect(screen.getByText("Stradale")).toBeInTheDocument();
   });
 });
 
-describe("StationDetailScreen — verificata o stima (nessun dato spacciato per verificato)", () => {
-  it("deviazione verificata col routing: badge «Verificato MISE», nessuna tilde", async () => {
+describe("StationDetailScreen — attribuzioni: prezzi (MISE) e percorso (Mapbox)", () => {
+  it("il badge «Verificato MISE» sta nell'header del listino e attribuisce i prezzi", async () => {
     respondWith();
     renderScreen();
     await loaded();
-    expect(screen.getByText("Verificato MISE")).toBeInTheDocument();
+
+    const listino = screen.getByRole("region", { name: "Listino carburanti" });
+    const badge = within(listino).getByText("Verificato MISE");
+    expect(badge).toHaveClass("rounded-full", "bg-primary/10", "text-on-primary-fixed-variant");
+    expect(badge).toHaveAttribute("title", expect.stringContaining("Osservaprezzi"));
+    expect(within(listino).queryByText("Prezzi MIMIT Osservaprezzi")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Verificato MISE")).toHaveLength(1); // solo lì
+  });
+
+  it("il badge dei prezzi c'è anche quando la deviazione è una stima: non dice nulla sul percorso", async () => {
+    respondWith(makeDetail({ detour: { km: 2, minutes: 3, source: "proxy" } }));
+    renderScreen();
+    await loaded();
+    expect(within(screen.getByRole("region", { name: "Listino carburanti" })).getByText("Verificato MISE")).toBeInTheDocument();
+  });
+
+  it("deviazione verificata col routing: il tile dice «Percorso verificato» (con tooltip), nessuna tilde", async () => {
+    respondWith();
+    renderScreen();
+    await loaded();
+
+    const source = within(screen.getByTestId("tile-detour")).getByTestId("detour-source");
+    expect(source).toHaveTextContent("Percorso verificato");
+    expect(source).toHaveAttribute("title", expect.stringContaining("routing Mapbox"));
+    expect(screen.getByTestId("tile-detour")).not.toHaveTextContent("~");
     expect(screen.queryByText("Stima geometrica")).not.toBeInTheDocument();
   });
 
-  it("routing non disponibile (source proxy): badge «Stima geometrica», tilde e «stima» nei tile", async () => {
+  it("routing non disponibile (source proxy): il tile dice «Stima geometrica» (con tooltip) e i valori hanno la tilde", async () => {
     respondWith(makeDetail({ detour: { km: 2, minutes: 3, source: "proxy" } }));
     renderScreen();
     await loaded();
 
-    expect(screen.getByText("Stima geometrica")).toBeInTheDocument();
-    expect(screen.queryByText("Verificato MISE")).not.toBeInTheDocument();
     const detour = screen.getByTestId("tile-detour");
+    const source = within(detour).getByTestId("detour-source");
+    expect(source).toHaveTextContent("Stima geometrica");
+    expect(source).toHaveAttribute("title", expect.stringContaining("non è stato verificato"));
     expect(detour).toHaveTextContent("~+2,0 km");
     expect(detour).toHaveTextContent("~+3 min guida");
-    expect(detour).toHaveTextContent("stima");
+    expect(screen.queryByText("Percorso verificato")).not.toBeInTheDocument();
     expect(screen.getByTestId("tile-savings")).toHaveTextContent("~€ 5,96");
+  });
+
+  it("la provenienza della deviazione non sparisce mai: sempre una delle due etichette, mai nessuna e mai entrambe", async () => {
+    for (const source of ["routing", "proxy"] as const) {
+      respondWith(makeDetail({ detour: { km: 1.6, minutes: 2.9, source } }));
+      const { unmount } = renderScreen();
+      await loaded();
+      const label = screen.getByTestId("detour-source").textContent;
+      expect(label).toBe(source === "routing" ? "Percorso verificato" : "Stima geometrica");
+      expect(screen.getAllByTestId("detour-source")).toHaveLength(1);
+      unmount();
+    }
   });
 });
 
@@ -233,85 +296,76 @@ describe("StationDetailScreen — navigazione e back", () => {
   });
 });
 
-describe("StationDetailScreen — «Apri nel Navigatore» (deep-link)", () => {
+describe("StationDetailScreen — «Apri nel Navigatore» (menu con app consigliata)", () => {
   const cta = () => screen.getByRole("button", { name: /Apri nel Navigatore/ });
 
-  it("iPhone: apre direttamente Apple Maps con le coordinate della stazione", async () => {
+  async function openMenu(ua: string) {
     const user = userEvent.setup();
-    setUA(IPHONE);
+    setUA(ua);
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     respondWith();
     renderScreen();
     await loaded();
     await user.click(cta());
+    return { user, open, dialog: screen.getByRole("dialog", { name: "Apri in navigatore" }) };
+  }
 
-    expect(open).toHaveBeenCalledTimes(1);
-    const [url, target, features] = open.mock.calls[0]!;
-    expect(String(url)).toContain("https://maps.apple.com/");
-    expect(String(url)).toContain("daddr=45.685986,9.054773");
-    expect(target).toBe("_blank");
-    expect(features).toBe("noopener,noreferrer");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  it("non c'è più il pulsante secondario «…»: resta la sola CTA", async () => {
+    respondWith();
+    renderScreen();
+    await loaded();
+    expect(screen.queryByRole("button", { name: "Scegli l'app di navigazione" })).not.toBeInTheDocument();
+    const bar = cta().parentElement!;
+    expect(within(bar).getAllByRole("button")).toHaveLength(1);
   });
 
-  it("Android: apre direttamente Google Maps con le coordinate della stazione", async () => {
-    const user = userEvent.setup();
-    setUA(ANDROID);
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    respondWith();
-    renderScreen();
-    await loaded();
-    await user.click(cta());
-
-    expect(String(open.mock.calls[0]![0])).toContain("https://www.google.com/maps/dir/?api=1&destination=45.685986,9.054773");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("desktop o sistema sconosciuto: non apre nulla e mostra il menu con Google Maps, Apple Maps e Waze", async () => {
-    const user = userEvent.setup();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    respondWith();
-    renderScreen();
-    await loaded();
-    await user.click(cta());
-
+  it("iPhone: la CTA apre il menu (nessun lancio diretto) con Apple Maps per prima, «Consigliato»", async () => {
+    const { open, dialog } = await openMenu(IPHONE);
     expect(open).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("dialog", { name: "Apri in navigatore" });
+
+    const links = within(dialog).getAllByRole("link");
+    expect(links.map((l) => l.textContent?.replace("Consigliato", "").trim())).toEqual(["Apple Maps", "Google Maps", "Waze"]);
+    expect(within(links[0]!).getByText("Consigliato")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Consigliato")).toHaveLength(1);
+    expect(links[0]!.getAttribute("href")).toContain("https://maps.apple.com/");
+    expect(links[0]!.getAttribute("href")).toContain("daddr=45.685986,9.054773");
+  });
+
+  it("Android: Google Maps per prima, «Consigliato», con le coordinate della stazione", async () => {
+    const { open, dialog } = await openMenu(ANDROID);
+    expect(open).not.toHaveBeenCalled();
+
+    const links = within(dialog).getAllByRole("link");
+    expect(links.map((l) => l.textContent?.replace("Consigliato", "").trim())).toEqual(["Google Maps", "Apple Maps", "Waze"]);
+    expect(within(links[0]!).getByText("Consigliato")).toBeInTheDocument();
+    expect(links[0]!.getAttribute("href")).toContain("https://www.google.com/maps/dir/?api=1&destination=45.685986,9.054773");
+  });
+
+  it("desktop o sistema sconosciuto: nessuna app consigliata, ordine Google Maps, Apple Maps, Waze", async () => {
+    const { dialog } = await openMenu(DESKTOP);
     const links = within(dialog).getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual(["Google Maps", "Apple Maps", "Waze"]);
-    for (const link of links) expect(link.getAttribute("href")).toMatch(/45\.685986[,&]|ll=45\.685986,9\.054773/);
+    expect(within(dialog).queryByText("Consigliato")).not.toBeInTheDocument();
     expect(links[2]!.getAttribute("href")).toContain("waze.com/ul?ll=45.685986,9.054773");
-
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("il pulsante secondario apre sempre il menu di scelta, anche su iPhone e Android", async () => {
-    const user = userEvent.setup();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    respondWith();
-    renderScreen();
-    await loaded();
-
-    for (const ua of [IPHONE, ANDROID, DESKTOP]) {
-      setUA(ua);
-      await user.click(screen.getByRole("button", { name: "Scegli l'app di navigazione" }));
-      expect(screen.getByRole("dialog", { name: "Apri in navigatore" })).toBeInTheDocument();
-      await user.keyboard("{Escape}");
-    }
-    expect(open).not.toHaveBeenCalled();
+  it("il consigliato equivale al lancio diretto: stesso link https, nuova scheda, noopener", async () => {
+    const { dialog } = await openMenu(IPHONE);
+    const recommended = within(dialog).getAllByRole("link")[0]!;
+    expect(recommended).toHaveAttribute("target", "_blank");
+    expect(recommended).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    expect(recommended.getAttribute("href")).toBe(
+      navigationLink("apple", { name: "1858 BREGNANO", lat: 45.685986, lon: 9.054773 }).url,
+    );
   });
 
-  it("il menu mostra prezzo scelto e risparmio della stazione", async () => {
-    const user = userEvent.setup();
-    respondWith();
-    renderScreen();
-    await loaded();
-    await user.click(screen.getByRole("button", { name: "Scegli l'app di navigazione" }));
-    const dialog = screen.getByRole("dialog");
+  it("il menu mostra prezzo scelto e risparmio, e si chiude con Esc", async () => {
+    const { user, dialog } = await openMenu(DESKTOP);
     expect(dialog).toHaveTextContent("€1,990");
     expect(dialog).toHaveTextContent("Benzina Self");
     expect(dialog).toHaveTextContent("Risparmi € 5,96");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

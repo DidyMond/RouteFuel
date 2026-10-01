@@ -2,7 +2,7 @@ import type { StationSummary } from "@routefuel/shared";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { formatEuro, formatPrice } from "../../lib/format";
-import { navigationLinks } from "../../lib/navigation";
+import { orderedNavigationLinks } from "../../lib/navigation";
 import { CloseIcon, ExternalIcon } from "../icons";
 
 export interface NavigateSummary {
@@ -20,12 +20,14 @@ interface NavigateSheetProps {
 }
 
 /**
- * Foglio "Apri in navigatore": i deep-link verso Google Maps, Apple Maps e Waze per la stazione. È il menu di scelta
- * quando "Naviga" non riconosce la piattaforma (desktop) e il menu esplicito sempre raggiungibile nel dettaglio stazione.
+ * Foglio "Apri in navigatore": i deep-link verso Google Maps, Apple Maps e Waze per la stazione. L'app predefinita del
+ * sistema rilevato (Apple Maps su iOS, Google Maps su Android) è in prima posizione ed etichettata «Consigliato»: un tap
+ * equivale al lancio diretto. Serve da menu quando "Naviga" non riconosce la piattaforma (desktop) e dalla CTA
+ * «Apri nel Navigatore» del dettaglio stazione.
  */
 export function NavigateSheet({ station, summary, onClose }: NavigateSheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const links = navigationLinks({ name: station.nomeImpianto, lat: station.lat, lon: station.lon });
+  const { links, recommended } = orderedNavigationLinks({ name: station.nomeImpianto, lat: station.lat, lon: station.lon });
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -92,6 +94,11 @@ export function NavigateSheet({ station, summary, onClose }: NavigateSheetProps)
               }`}
             >
               {link.label}
+              {link.app === recommended && (
+                <span className="inline-flex items-center h-[20px] px-space-sm rounded-full bg-on-primary/20 text-on-primary text-label-sm font-label-sm">
+                  Consigliato
+                </span>
+              )}
               <ExternalIcon className="w-4 h-4" />
             </a>
           ))}

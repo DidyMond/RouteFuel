@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { detectPlatform, navigationLink, navigationLinks, primaryNavigationLink, launchNavigation } from "./navigation";
+import { detectPlatform, navigationLink, navigationLinks, primaryNavigationLink, launchNavigation, orderedNavigationLinks } from "./navigation";
 
 const target = { name: "1858 BREGNANO", lat: 45.685986, lon: 9.054773 };
 
@@ -96,5 +96,34 @@ describe("launchNavigation (Apri nel Navigatore)", () => {
     expect(launchNavigation(target, { userAgent: WINDOWS, maxTouchPoints: 0, open })).toBeNull();
     expect(launchNavigation(target, { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 0, open })).toBeNull();
     expect(open).not.toHaveBeenCalled();
+  });
+});
+
+describe("orderedNavigationLinks (menu «Apri nel Navigatore»)", () => {
+  const spot = { name: "1858 BREGNANO", lat: 45.685986, lon: 9.054773 };
+  const apps = (options: ReturnType<typeof orderedNavigationLinks>) => options.links.map((l) => l.app);
+
+  it("iOS: Apple Maps per prima e consigliata, poi Google Maps e Waze", () => {
+    const options = orderedNavigationLinks(spot, { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", maxTouchPoints: 5 });
+    expect(options.recommended).toBe("apple");
+    expect(apps(options)).toEqual(["apple", "google", "waze"]);
+  });
+
+  it("Android: Google Maps per prima e consigliata, poi Apple Maps e Waze", () => {
+    const options = orderedNavigationLinks(spot, { userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8)", maxTouchPoints: 5 });
+    expect(options.recommended).toBe("google");
+    expect(apps(options)).toEqual(["google", "apple", "waze"]);
+  });
+
+  it("desktop o sconosciuto: nessuna consigliata, ordine Google Maps, Apple Maps, Waze", () => {
+    const options = orderedNavigationLinks(spot, { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", maxTouchPoints: 0 });
+    expect(options.recommended).toBeNull();
+    expect(apps(options)).toEqual(["google", "apple", "waze"]);
+  });
+
+  it("il consigliato ha lo stesso link del lancio diretto, con le stesse coordinate", () => {
+    const env = { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", maxTouchPoints: 5 };
+    const direct = primaryNavigationLink(detectPlatform(env.userAgent, env.maxTouchPoints), spot)!;
+    expect(orderedNavigationLinks(spot, env).links[0]).toEqual(direct);
   });
 });

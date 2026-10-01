@@ -8,17 +8,19 @@ interface ResultCardProps {
   fuelType: SearchFuelType;
   best: boolean;
   selected: boolean;
-  /** Tap sulla scheda o su «Info»: apre il dettaglio della stazione (Screen 3). */
-  onOpen: (result: StationResult) => void;
+  /** Tap sulla scheda: seleziona la stazione (pin evidenziato e percorso con sosta sulla mappa). */
+  onSelect: (id: number) => void;
+  /** «Info»: apre il dettaglio della stazione (Screen 3). */
+  onInfo: (result: StationResult) => void;
   onNavigate: (result: StationResult) => void;
 }
 
 /**
  * Card di una stazione (DESIGN.md — Station Recommendation Cards). L'intera card è cliccabile
- * (apre il dettaglio della stazione), quindi ammette l'elevazione in hover; Info e Naviga sono
+ * (seleziona la stazione sulla mappa), quindi ammette l'elevazione in hover; Info (dettaglio) e Naviga sono
  * pulsanti propri e non propagano il click.
  */
-export function ResultCard({ result, fuelType, best, selected, onOpen, onNavigate }: ResultCardProps) {
+export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo, onNavigate }: ResultCardProps) {
   const { station } = result;
   const saves = result.netSavings > 0;
   const estimated = result.detourSource === "proxy";
@@ -32,11 +34,11 @@ export function ResultCard({ result, fuelType, best, selected, onOpen, onNavigat
       data-station-id={station.id}
       aria-current={selected ? "true" : undefined}
       tabIndex={0}
-      onClick={() => onOpen(result)}
+      onClick={() => onSelect(station.id)}
       onKeyDown={(event) => {
         if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
-          onOpen(result);
+          onSelect(station.id);
         }
       }}
       className={`relative rounded-lg bg-surface-container-lowest p-space-lg flex flex-col gap-space-md cursor-pointer transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-secondary/60 hover:shadow-md ${
@@ -114,7 +116,7 @@ export function ResultCard({ result, fuelType, best, selected, onOpen, onNavigat
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            onOpen(result);
+            onInfo(result);
           }}
           aria-label={`Info su ${station.nomeImpianto}`}
           className="h-9 px-space-lg rounded-full bg-surface-container-low text-on-surface text-label-lg font-label-lg flex items-center gap-1.5 border border-transparent hover:border-primary hover:text-on-primary-fixed-variant transition-colors"

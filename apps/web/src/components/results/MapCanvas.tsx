@@ -275,14 +275,17 @@ export default function MapCanvas({
     map.on("moveend", syncPins);
     map.on("zoomend", syncPins);
 
-    let fittedAfterResize = false;
+    // Il contenitore ha dimensione 0 alla creazione e ogni volta che i Risultati restano montati ma nascosti
+    // (dettaglio stazione aperto). Quando torna visibile si riadatta la mappa: resize() e percorso inquadrato di nuovo.
+    let hidden = true;
     const observer = new ResizeObserver((entries) => {
-      map.resize();
       const box = entries[0]?.contentRect;
-      if (!fittedAfterResize && box && box.width > 0 && box.height > 0) {
-        fittedAfterResize = true;
-        fitRoute(false);
+      const visible = !!box && box.width > 0 && box.height > 0;
+      if (visible) {
+        map.resize();
+        if (hidden) fitRoute(false);
       }
+      hidden = !visible;
       syncPins();
     });
     observer.observe(containerRef.current);
