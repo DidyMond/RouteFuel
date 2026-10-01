@@ -4,9 +4,11 @@ import {
   computeNetSavings,
   computeReferencePrice,
   computeRoutedDetour,
+  computeStationDetail,
   costPerKm,
   createRouteProjector,
   estimateProxyDetour,
+  resolveDetour,
   routeToWkt,
   selectStationPrice,
   simplifyRoute,
@@ -21,6 +23,8 @@ import type {
   SearchRefinementResponse,
   SearchRequest,
   SearchResponse,
+  StationDetailResponse,
+  StationPriceEntry,
   StationRouteResponse,
   LivePricesInfo,
   StationResult,
@@ -28,7 +32,7 @@ import type {
 } from "@routefuel/shared";
 import { AppError, BudgetExhaustedError } from "../errors";
 import type { BudgetGate } from "../providers/routing/DirectionsBudget";
-import type { RoutingProvider } from "../providers/routing/RoutingProvider";
+import type { RouteResult, RoutingProvider } from "../providers/routing/RoutingProvider";
 import type { CorridorPriceRow, StationRepository } from "./StationRepository";
 import type { SearchSession, SearchSessionStore } from "./SearchSessionStore";
 
@@ -186,17 +190,16 @@ export class SearchService {
     return { searchId, refinement: session.refinement, results: session.results.map(present) };
   }
 
-  /**
-   * Percorso A→stazione→B di una stazione tra i risultati della ricerca. Usa la stessa chiamata della verifica
-   * (quindi, per le prime stazioni, la cache); se il routing non è disponibile (kill switch, rete) lancia l'errore
-   * e il client non disegna nulla.
-   */
-  async getStationRoute(searchId: string, stationId: number): Promise<StationRouteResponse> {
+  private findStation(searchId: string, stationId: number): { session: SearchSession; result: StationResult } {
     const session = this.deps.sessions.get(searchId);
     if (!session) throw new AppError("SEARCH_NOT_FOUND", 404, "Ricerca non trovata o scaduta.");
     const result = session.results.find((r) => r.station.id === stationId);
     if (!result) throw new AppError("NOT_FOUND", 404, "Stazione non presente tra i risultati della ricerca.");
+    return { session, result };
+  }
 
+  /** Routing A→stazione→B e deviazione coerente rispetto al diretto. Stessa chiamata della verifica (cache). */
+  private async routeViaStation(session: SearchSession, result: StationResult): Promise<{ via: RouteResult; detour: Detour }> {
     const { request, route } = session;
     const via = await this.deps.routing.getRoute([
       request.origin,
@@ -204,8 +207,17 @@ export class SearchService {
       request.destination,
     ]);
     if (!via) throw new AppError("NO_ROUTE", 422, "Nessun percorso stradale trovato passando da questa stazione.");
+    return { via, detour: computeRoutedDetour(route, via, result.lateralDistanceKm) };
+  }
 
-    const detour = computeRoutedDetour(route, via, result.lateralDistanceKm);
+  /**
+   * Percorso A→stazione→B di una stazione tra i risultati della ricerca. Usa la stessa chiamata della verifica
+   * (quindi, per le prime stazioni, la cache); se il routing non è disponibile (kill switch, rete) lancia l'errore
+   * e il client non disegna nulla.
+   */
+  async getStationRoute(searchId: string, stationId: number): Promise<StationRouteResponse> {
+    const { session, result } = this.findStation(searchId, stationId);
+    const { via, detour } = await this.routeViaStation(session, result);
     return {
       searchId,
       stationId,
@@ -214,6 +226,66 @@ export class SearchService {
       detourKm: round(detour.km, 2),
       detourMinutes: round(detour.minutes, 1),
       geometry: simplifyRoute(via.geometry).map(([lon, lat]) => [round(lon, 5), round(lat, 5)] as [number, number]),
+    };
+  }
+
+  /**
+   * Dettaglio di una stazione (Screen 3). La deviazione è sempre quella verificata col routing reale: se la stazione
+   * è già stata verificata dal ricalcolo in background si riusa quel valore (nessuna chiamata), altrimenti si fa una
+   * singola chiamata on-demand (cache, kill switch e rate limit come per le altre). Se il routing non è disponibile
+   * non si inventa nulla: resta la stima geometrica e `detour.source` vale `proxy`, così il client la mostra come stima.
+   */
+  async getStationDetail(searchId: string, stationId: number): Promise<StationDetailResponse> {
+    const { session, result } = this.findStation(searchId, stationId);
+    const { request } = session;
+
+    const proxy: Detour = { km: result.detourKm, minutes: result.detourMinutes };
+    let verified: Detour | null = result.detourSource === "routing" ? proxy : null;
+    if (!verified) {
+      try {
+        verified = (await this.routeViaStation(session, result)).detour;
+      } catch (error) {
+        if (!(error instanceof BudgetExhaustedError)) {
+          this.deps.logger?.warn({ stationId }, "Verifica routing on-demand del dettaglio non riuscita");
+        }
+      }
+    }
+    const { detour, source } = resolveDetour(verified, proxy);
+
+    const impact = computeStationDetail({
+      referencePrice: session.referencePrice.value,
+      stationPrice: result.price,
+      liters: request.liters,
+      detour,
+      consumptionKmPerLiter: request.consumptionKmPerLiter,
+      valueOfTimePerMinute: request.valueOfTimePerMinute,
+    });
+
+    const prices = sortPrices(await this.deps.repository.getStationPrices(stationId, request.maxPriceAgeHours));
+
+    return {
+      searchId,
+      station: result.station,
+      selected: {
+        fuelType: request.fuelType,
+        isSelf: result.isSelf,
+        servitoOnly: result.servitoOnly,
+        price: round(result.price, 3),
+        priceUpdatedAt: result.priceUpdatedAt,
+      },
+      prices: prices.map((p) => ({ ...p, price: round(p.price, 3) })),
+      liters: request.liters,
+      referencePrice: { ...session.referencePrice, value: round(session.referencePrice.value, 3) },
+      detour: { km: round(detour.km, 2), minutes: round(detour.minutes, 1), source },
+      impact: {
+        grossSavings: round(impact.grossSavings, 2),
+        detourCost: round(impact.detourCost, 2),
+        netSavings: round(impact.netSavings, 2),
+        priceDifferencePerLiter: round(impact.priceDifferencePerLiter, 3),
+        priceDifferencePercent: round(impact.priceDifferencePercent, 1),
+      },
+      lateralDistanceKm: round(result.lateralDistanceKm, 2),
+      alongRouteKm: round(result.alongRouteKm, 1),
     };
   }
 
@@ -405,6 +477,13 @@ function groupByStation(rows: readonly CorridorPriceRow[]) {
 
 function byNetSavings(a: StationResult, b: StationResult): number {
   return b.netSavings - a.netSavings || a.detourKm - b.detourKm || a.station.id - b.station.id;
+}
+
+const FUEL_ORDER: Record<StationPriceEntry["fuelType"], number> = { benzina: 0, diesel: 1, gpl: 2, metano: 3 };
+
+/** Ordine stabile della matrice prezzi: benzina, diesel, GPL, metano; per ciascuno prima il Self. */
+function sortPrices(prices: readonly StationPriceEntry[]): StationPriceEntry[] {
+  return [...prices].sort((a, b) => FUEL_ORDER[a.fuelType] - FUEL_ORDER[b.fuelType] || Number(b.isSelf) - Number(a.isSelf));
 }
 
 function clamp(value: number, min: number, max: number): number {

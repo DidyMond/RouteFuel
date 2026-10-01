@@ -53,6 +53,7 @@ describe.skipIf(!enabled)("integrazione PostgreSQL + PostGIS", () => {
         { station_id: TEST_STATION_ID, fuel_type: "benzina", raw_desc_carburante: "Benzina", is_self: true, price: 1.5, communicated_at: hoursAgo(1) },
         { station_id: TEST_STATION_ID, fuel_type: "benzina", raw_desc_carburante: "Benzina", is_self: false, price: 1.7, communicated_at: hoursAgo(1) },
         { station_id: TEST_STATION_ID, fuel_type: "diesel", raw_desc_carburante: "Gasolio", is_self: true, price: 1.6, communicated_at: hoursAgo(100) }, // stantio
+        { station_id: TEST_STATION_ID, fuel_type: "hvo", raw_desc_carburante: "HVO", is_self: true, price: 2.0, communicated_at: hoursAgo(1) }, // fuori dai 4 carburanti MVP
       ])
       .execute();
   });
@@ -109,6 +110,23 @@ describe.skipIf(!enabled)("integrazione PostgreSQL + PostGIS", () => {
       const long = routeToWkt(Array.from({ length: 800 }, (_, i) => [2.5 + i * 0.001, 42.0 + Math.sin(i / 20) * 0.001] as [number, number]));
       const rows = await repository.findCorridorPrices({ routeWkt: long, radiusMeters: 2000, fuelType: "benzina", maxAgeHours: 72 });
       expect(rows.some((r) => r.stationId === TEST_STATION_ID)).toBe(true);
+    });
+  });
+
+  describe("getStationPrices — matrice prezzi del dettaglio stazione", () => {
+    it("restituisce Self e Servito dei carburanti MVP, ordinati, e non gli altri carburanti (HVO)", async () => {
+      const prices = await repository.getStationPrices(TEST_STATION_ID, 72);
+      expect(prices.map((p) => `${p.fuelType}:${p.isSelf ? "self" : "servito"}:${p.price}`)).toEqual(["benzina:self:1.5", "benzina:servito:1.7"]);
+      expect(prices.every((p) => !Number.isNaN(Date.parse(p.communicatedAt)))).toBe(true);
+    });
+
+    it("FRESCHEZZA — il prezzo stantio (100 h) compare solo con una soglia più ampia", async () => {
+      const lenient = await repository.getStationPrices(TEST_STATION_ID, 200);
+      expect(lenient.some((p) => p.fuelType === "diesel" && p.isSelf)).toBe(true);
+    });
+
+    it("una stazione sconosciuta non ha prezzi", async () => {
+      expect(await repository.getStationPrices(999_999_999, 72)).toEqual([]);
     });
   });
 

@@ -1,5 +1,5 @@
 import type { NationalPrice } from "@routefuel/core";
-import type { SearchFuelType, TipoImpianto } from "@routefuel/shared";
+import type { SearchFuelType, StationPriceEntry, TipoImpianto } from "@routefuel/shared";
 
 /** Una riga per (stazione, modalità Self/Servito) con il prezzo fresco per il carburante cercato. */
 export interface CorridorPriceRow {
@@ -34,6 +34,11 @@ export interface StationRepository {
   findCorridorPrices(query: CorridorQuery): Promise<CorridorPriceRow[]>;
   /** Mediana nazionale per la combinazione carburante/modalità (ultimo livello della cascata di P_avg). */
   getNationalPrice(query: { fuelType: SearchFuelType; onlySelf: boolean; maxAgeHours: number }): Promise<NationalPrice | null>;
+  /**
+   * Tutte le combinazioni carburante × modalità della stazione con prezzo fresco (solo i 4 carburanti dell'MVP:
+   * benzina, diesel, GPL, metano), per il dettaglio stazione.
+   */
+  getStationPrices(stationId: number, maxAgeHours: number): Promise<StationPriceEntry[]>;
   /** Fine dell'ultima ingestione MIMIT riuscita, o null se non ne esiste alcuna. */
   getLastIngestionAt(): Promise<Date | null>;
 }

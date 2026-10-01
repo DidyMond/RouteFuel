@@ -343,6 +343,62 @@ describe("privacy dei log", () => {
   });
 });
 
+describe("GET /search/:id/stations/:stationId", () => {
+  it("200 con il dettaglio completo: stazione, combinazione scelta, prezzi, deviazione verificata e impatto", async () => {
+    const app = await makeApp();
+    const created = (await app.inject({ method: "POST", url: "/search", payload: validBody })).json();
+    const response = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/5` });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.searchId).toBe(created.searchId);
+    expect(body.station).toMatchObject({ id: 5, tipoImpianto: "stradale" });
+    expect(body.selected).toMatchObject({ fuelType: "benzina", isSelf: true });
+    expect(body.detour.source).toBe("routing");
+    expect(body.detour.km).toBeGreaterThan(0);
+    expect(body.impact).toEqual(
+      expect.objectContaining({ netSavings: expect.any(Number), priceDifferencePerLiter: expect.any(Number), priceDifferencePercent: expect.any(Number) }),
+    );
+    expect(Array.isArray(body.prices)).toBe(true);
+  });
+
+  it("con il routing in errore risponde comunque 200 con detour.source «proxy»", async () => {
+    const failing = new MockRoutingProvider();
+    const original = failing.getRoute.bind(failing);
+    failing.getRoute = async (waypoints) => {
+      if (waypoints.length === 3) throw new ProviderError("Servizio di routing non raggiungibile");
+      return original(waypoints);
+    };
+    const searchService = new SearchService({
+      routing: failing,
+      repository: new InMemoryStationRepository(stations()),
+      budget: { status: async () => "soft_limit" },
+      sessions: new SearchSessionStore(),
+    });
+    const app = await makeApp({ searchService });
+    const created = (await app.inject({ method: "POST", url: "/search", payload: validBody })).json();
+    const response = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/5` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().detour.source).toBe("proxy");
+  });
+
+  it("404 SEARCH_NOT_FOUND / NOT_FOUND e 400 per parametri non validi", async () => {
+    const app = await makeApp();
+    const unknown = await app.inject({ method: "GET", url: "/search/00000000-0000-4000-8000-000000000000/stations/5" });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json().error.code).toBe("SEARCH_NOT_FOUND");
+
+    const created = (await app.inject({ method: "POST", url: "/search", payload: validBody })).json();
+    const missing = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/424242` });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe("NOT_FOUND");
+
+    const bad = await app.inject({ method: "GET", url: `/search/${created.searchId}/stations/abc` });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
 describe("GET /search/:id/stations/:stationId/route", () => {
   it("200 con la geometria del percorso con sosta", async () => {
     const app = await makeApp();
