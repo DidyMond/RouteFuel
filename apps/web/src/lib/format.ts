@@ -42,3 +42,23 @@ export function formatDateTime(iso: string): string {
 export function formatShortDate(iso: string): string {
   return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" }).format(new Date(iso));
 }
+
+/** Importo con segno esplicito per i valori negativi, es. "€ 15,80" o "−€ 2,00" (meno tipografico). */
+export function formatSignedEuro(value: number): string {
+  const text = `€ ${formatters[2].format(Math.abs(value))}`;
+  return value < 0 ? `−${text}` : text;
+}
+
+/** Differenza di prezzo al litro con segno, es. "−0,160" / "+0,150" (€/L). */
+export function formatPriceDifference(value: number): string {
+  const text = formatters[3].format(Math.abs(value));
+  if (value < 0) return `−${text}`;
+  return value > 0 ? `+${text}` : text;
+}
+
+/** Percentuale con segno e un decimale, es. "−7,4%" / "+3,0%". */
+export function formatSignedPercent(value: number): string {
+  const text = `${formatters[1].format(Math.abs(value))}%`;
+  if (value < 0) return `−${text}`;
+  return value > 0 ? `+${text}` : text;
+}

@@ -1,24 +1,29 @@
-import type { SearchFuelType, StationResult } from "@routefuel/shared";
+import type { StationSummary } from "@routefuel/shared";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { formatEuro, formatPrice } from "../../lib/format";
 import { navigationLinks } from "../../lib/navigation";
-import { fuelModeLabel } from "../../lib/stationView";
 import { CloseIcon, ExternalIcon } from "../icons";
 
+export interface NavigateSummary {
+  price: number;
+  /** Es. "Benzina Self". */
+  modeLabel: string;
+  netSavings: number;
+}
+
 interface NavigateSheetProps {
-  result: StationResult;
-  fuelType: SearchFuelType;
+  station: StationSummary;
+  /** Prezzo e risparmio da mostrare sopra i link (facoltativo). */
+  summary?: NavigateSummary;
   onClose: () => void;
 }
 
 /**
- * Foglio "Apri in navigatore": mostra i deep-link verso Google Maps, Apple Maps e Waze per la stazione.
- * È tutto ciò che c'è dietro «Info» in questa milestone: il dettaglio completo della stazione (Screen 3) è una
- * milestone successiva. Serve anche da menu di scelta quando "Naviga" non riconosce la piattaforma.
+ * Foglio "Apri in navigatore": i deep-link verso Google Maps, Apple Maps e Waze per la stazione. È il menu di scelta
+ * quando "Naviga" non riconosce la piattaforma (desktop) e il menu esplicito sempre raggiungibile nel dettaglio stazione.
  */
-export function NavigateSheet({ result, fuelType, onClose }: NavigateSheetProps) {
-  const { station } = result;
+export function NavigateSheet({ station, summary, onClose }: NavigateSheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const links = navigationLinks({ name: station.nomeImpianto, lat: station.lat, lon: station.lon });
 
@@ -62,15 +67,17 @@ export function NavigateSheet({ result, fuelType, onClose }: NavigateSheetProps)
           </button>
         </div>
 
-        <div className="flex items-center gap-space-md rounded-DEFAULT bg-surface-container-low p-space-md">
-          <span className="text-numeric-stat font-numeric-stat tabular-nums text-on-surface">€{formatPrice(result.price)}</span>
-          <div className="flex flex-col">
-            <span className="text-label-md font-label-md text-on-surface-variant">{fuelModeLabel(fuelType, result.isSelf)}</span>
-            <span className={`text-label-md font-label-md tabular-nums ${result.netSavings > 0 ? "text-on-primary-fixed-variant" : "text-on-error-container"}`}>
-              {result.netSavings > 0 ? "Risparmi" : "Non conviene"} {formatEuro(result.netSavings)}
-            </span>
+        {summary && (
+          <div className="flex items-center gap-space-md rounded-DEFAULT bg-surface-container-low p-space-md">
+            <span className="text-numeric-stat font-numeric-stat tabular-nums text-on-surface">€{formatPrice(summary.price)}</span>
+            <div className="flex flex-col">
+              <span className="text-label-md font-label-md text-on-surface-variant">{summary.modeLabel}</span>
+              <span className={`text-label-md font-label-md tabular-nums ${summary.netSavings > 0 ? "text-on-primary-fixed-variant" : "text-on-error-container"}`}>
+                {summary.netSavings > 0 ? "Risparmi" : "Non conviene"} {formatEuro(summary.netSavings)}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex flex-col gap-space-sm">
           <span className="text-label-sm font-label-sm font-semibold text-on-surface">Apri in navigatore</span>

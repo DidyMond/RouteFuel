@@ -59,3 +59,23 @@ export function primaryNavigationLink(platform: Platform, target: NavigationTarg
   if (platform === "android") return navigationLink("google", target);
   return null;
 }
+
+export interface LaunchEnvironment {
+  userAgent: string;
+  maxTouchPoints: number;
+  open: (url: string, target: string, features: string) => unknown;
+}
+
+/**
+ * «Apri nel navigatore»: su iOS apre Apple Maps e su Android Google Maps direttamente (link universali https, che
+ * aprono l'app se installata); altrove non apre nulla e restituisce null, così la UI mostra il menu di scelta con
+ * Google Maps, Apple Maps e Waze. Restituisce il link aperto, se c'è.
+ */
+export function launchNavigation(target: NavigationTarget, env?: Partial<LaunchEnvironment>): NavigationLink | null {
+  const userAgent = env?.userAgent ?? navigator.userAgent;
+  const maxTouchPoints = env?.maxTouchPoints ?? navigator.maxTouchPoints;
+  const open = env?.open ?? ((url, name, features) => window.open(url, name, features));
+  const link = primaryNavigationLink(detectPlatform(userAgent, maxTouchPoints), target);
+  if (link) open(link.url, "_blank", "noopener,noreferrer");
+  return link;
+}

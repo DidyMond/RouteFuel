@@ -1,10 +1,10 @@
-import type { ReferencePriceLevel, RefinementInfo, StationResult } from "@routefuel/shared";
+import type { RefinementInfo, StationResult } from "@routefuel/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SearchState } from "../../hooks/useSearch";
 import { useStopRoute } from "../../hooks/useStopRoute";
 import { formatPrice } from "../../lib/format";
-import { detectPlatform, primaryNavigationLink } from "../../lib/navigation";
-import { applyFilters, bestStationId, DEFAULT_SORT, fuelModeLabel, type SortMode } from "../../lib/stationView";
+import { launchNavigation } from "../../lib/navigation";
+import { applyFilters, bestStationId, DEFAULT_SORT, fuelModeLabel, referenceLevelText, type SortMode } from "../../lib/stationView";
 import { CheckIcon, InfoIcon, RouteIcon, SavingsIcon, SpinnerIcon } from "../icons";
 import type { MapStation } from "./MapCanvas";
 import { MapView } from "./MapView";
@@ -57,12 +57,6 @@ function Chip({
   );
 }
 
-const REFERENCE_LEVEL_TEXT: Record<ReferencePriceLevel, (n: number) => string> = {
-  on_route: (n) => `mediana di ${n} stazioni sul percorso`,
-  corridor: (n) => `mediana di ${n} stazioni nel corridoio`,
-  national: () => "mediana nazionale, poche stazioni sul tratto",
-};
-
 function RefinementNotice({ refinement }: { refinement: RefinementInfo }) {
   if (refinement.status === "done") return null;
   const pending = refinement.status === "pending";
@@ -82,7 +76,7 @@ function RefinementNotice({ refinement }: { refinement: RefinementInfo }) {
  * Screen 2 — Risultati & Mappa. Mappa sopra (40% dell'altezza) e bottom sheet con filtri e schede sotto; su schermi
  * larghi il foglio diventa una barra laterale sopra la mappa. Ordinamento e filtri sono solo client-side.
  */
-export function ResultsScreen({ state }: { state: SuccessState }) {
+export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; onOpenStation: (result: StationResult) => void }) {
   const { response, results, refinement, request, labels } = state;
 
   const [sort, setSort] = useState<SortMode>(DEFAULT_SORT);
@@ -127,11 +121,16 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
     [visible, bestId, request.fuelType],
   );
 
-  // Toccare di nuovo la stazione selezionata (scheda o pin) la deseleziona e toglie il percorso con sosta.
-  const selectFromCard = useCallback((id: number) => {
-    selectionFromMap.current = false;
-    setSelectedId((current) => (current === id ? null : id));
-  }, []);
+  // Toccare una scheda (o «Info») apre il dettaglio della stazione; prima la seleziona, così tornando indietro
+  // la stazione resta evidenziata sulla mappa con il suo percorso con sosta.
+  const openFromCard = useCallback(
+    (result: StationResult) => {
+      selectionFromMap.current = false;
+      setSelectedId(result.station.id);
+      onOpenStation(result);
+    },
+    [onOpenStation],
+  );
 
   const deselect = useCallback(() => setSelectedId(null), []);
 
@@ -155,14 +154,8 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
   const closeNavigation = useCallback(() => setNavigating(null), []);
 
   const navigate = useCallback((result: StationResult) => {
-    const platform = detectPlatform(navigator.userAgent, navigator.maxTouchPoints);
     const target = { name: result.station.nomeImpianto, lat: result.station.lat, lon: result.station.lon };
-    const link = primaryNavigationLink(platform, target);
-    if (link) {
-      window.open(link.url, "_blank", "noopener,noreferrer");
-    } else {
-      setNavigating(result); // desktop o piattaforma sconosciuta: menu con Google Maps, Apple Maps e Waze
-    }
+    if (!launchNavigation(target)) setNavigating(result); // desktop o piattaforma sconosciuta: menu con Google Maps, Apple Maps e Waze
   }, []);
 
   const resetFilters = () => {
@@ -244,7 +237,7 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
             </div>
             <RefinementNotice refinement={refinement} />
             <p data-testid="reference-price" className="text-body-sm font-body-sm text-on-surface-variant tabular-nums">
-              Prezzo di riferimento €{formatPrice(response.referencePrice.value)}/L ({REFERENCE_LEVEL_TEXT[response.referencePrice.level](response.referencePrice.sampleSize)})
+              Prezzo di riferimento €{formatPrice(response.referencePrice.value)}/L ({referenceLevelText(response.referencePrice.level, response.referencePrice.sampleSize)})
             </p>
           </div>
 
@@ -273,8 +266,7 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
                   fuelType={request.fuelType}
                   best={result.station.id === bestId}
                   selected={result.station.id === selectedId}
-                  onSelect={selectFromCard}
-                  onInfo={setNavigating}
+                  onOpen={openFromCard}
                   onNavigate={navigate}
                 />
               ))}
@@ -295,7 +287,13 @@ export function ResultsScreen({ state }: { state: SuccessState }) {
         <PricesBanner livePrices={response.livePrices} dailyFileAt={response.pricesUpdatedAt} />
       </section>
 
-      {navigating && <NavigateSheet result={navigating} fuelType={request.fuelType} onClose={closeNavigation} />}
+      {navigating && (
+        <NavigateSheet
+          station={navigating.station}
+          summary={{ price: navigating.price, modeLabel: fuelModeLabel(request.fuelType, navigating.isSelf), netSavings: navigating.netSavings }}
+          onClose={closeNavigation}
+        />
+      )}
     </div>
   );
 }

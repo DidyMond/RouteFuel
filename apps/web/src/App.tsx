@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import type { StationResult } from "@routefuel/shared";
+import { useCallback, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
 import { ResultsScreen } from "./components/results/ResultsScreen";
 import { SearchError } from "./components/SearchError";
 import { SearchForm } from "./components/SearchForm";
+import { StationDetailScreen } from "./components/station/StationDetailScreen";
 import { useSearch } from "./hooks/useSearch";
 
 export default function App() {
@@ -27,25 +29,38 @@ export default function App() {
     if (searching) void import("./components/results/MapCanvas");
   }, [searching]);
 
-  const onResults = pathname === "/results";
+  const onHome = pathname === "/";
+  const onStation = pathname.startsWith("/station/");
+  const searchId = state.status === "success" ? state.response.searchId : null;
+  const openStation = useCallback((result: StationResult) => navigate(`/station/${searchId}/${result.station.id}`), [navigate, searchId]);
 
   return (
     <div className="bg-surface font-body-md text-on-surface flex flex-col min-h-screen relative overflow-x-hidden">
-      <Header />
+      {/* Le schermate a pila (dettaglio stazione) hanno il proprio header e niente barra inferiore. */}
+      {!onStation && <Header />}
 
-      {/* La Home resta montata (solo nascosta) sulla schermata Risultati, così il form conserva i valori inseriti. */}
-      <main className={`flex-1 w-full bg-surface pt-24 pb-28 px-margin gap-space-xl max-w-md mx-auto ${onResults ? "hidden" : "flex flex-col"}`}>
+      {/* La Home resta montata (solo nascosta) sulle altre schermate, così il form conserva i valori inseriti. */}
+      <main className={`flex-1 w-full bg-surface pt-24 pb-28 px-margin gap-space-xl max-w-md mx-auto ${onHome ? "flex flex-col" : "hidden"}`}>
         <SearchForm onSubmit={search} busy={state.status === "loading"} />
         {state.status === "error" && <SearchError error={state.error} />}
       </main>
 
+      {/* Anche i Risultati restano montati (nascosti) sul dettaglio stazione: tornando indietro ordinamento, filtri,
+          selezione e posizione della mappa sono quelli di prima. */}
+      {state.status === "success" && (pathname === "/results" || onStation) && (
+        <div className={onStation ? "hidden" : ""}>
+          <ResultsScreen state={state} onOpenStation={openStation} />
+        </div>
+      )}
+
       <Routes>
         <Route path="/" element={null} />
-        <Route path="/results" element={state.status === "success" ? <ResultsScreen state={state} /> : <Navigate to="/" replace />} />
+        <Route path="/results" element={state.status === "success" ? null : <Navigate to="/" replace />} />
+        <Route path="/station/:searchId/:stationId" element={<StationDetailScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      <BottomNav hasResults={state.status === "success"} />
+      {!onStation && <BottomNav hasResults={state.status === "success"} />}
     </div>
   );
 }

@@ -8,17 +8,17 @@ interface ResultCardProps {
   fuelType: SearchFuelType;
   best: boolean;
   selected: boolean;
-  onSelect: (id: number) => void;
-  onInfo: (result: StationResult) => void;
+  /** Tap sulla scheda o su «Info»: apre il dettaglio della stazione (Screen 3). */
+  onOpen: (result: StationResult) => void;
   onNavigate: (result: StationResult) => void;
 }
 
 /**
  * Card di una stazione (DESIGN.md — Station Recommendation Cards). L'intera card è cliccabile
- * (seleziona la stazione sulla mappa), quindi ammette l'elevazione in hover; Info e Naviga sono
+ * (apre il dettaglio della stazione), quindi ammette l'elevazione in hover; Info e Naviga sono
  * pulsanti propri e non propagano il click.
  */
-export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo, onNavigate }: ResultCardProps) {
+export function ResultCard({ result, fuelType, best, selected, onOpen, onNavigate }: ResultCardProps) {
   const { station } = result;
   const saves = result.netSavings > 0;
   const estimated = result.detourSource === "proxy";
@@ -32,11 +32,11 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
       data-station-id={station.id}
       aria-current={selected ? "true" : undefined}
       tabIndex={0}
-      onClick={() => onSelect(station.id)}
+      onClick={() => onOpen(result)}
       onKeyDown={(event) => {
         if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
-          onSelect(station.id);
+          onOpen(result);
         }
       }}
       className={`relative rounded-lg bg-surface-container-lowest p-space-lg flex flex-col gap-space-md cursor-pointer transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-secondary/60 hover:shadow-md ${
@@ -114,7 +114,7 @@ export function ResultCard({ result, fuelType, best, selected, onSelect, onInfo,
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            onInfo(result);
+            onOpen(result);
           }}
           aria-label={`Info su ${station.nomeImpianto}`}
           className="h-9 px-space-lg rounded-full bg-surface-container-low text-on-surface text-label-lg font-label-lg flex items-center gap-1.5 border border-transparent hover:border-primary hover:text-on-primary-fixed-variant transition-colors"

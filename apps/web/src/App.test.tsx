@@ -51,4 +51,20 @@ describe("App — routing", () => {
     );
     expect(screen.getByRole("heading", { name: /Pianifica viaggio/ })).toBeVisible();
   });
+  it("un indirizzo diretto del dettaglio stazione si apre senza ricerca in memoria, con il solo header a pila", async () => {
+    const detail = (await import("./test/fixtures")).makeDetail();
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => detail });
+    vi.stubGlobal("fetch", fetchSpy);
+    window.scrollTo = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/station/s1/2"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "1858 BREGNANO" })).toBeInTheDocument();
+    expect(String(fetchSpy.mock.calls[0]![0])).toContain("/search/s1/stations/2");
+    expect(screen.getAllByRole("banner")).toHaveLength(1);
+    expect(screen.queryByRole("navigation", { name: "Navigazione principale" })).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
 });

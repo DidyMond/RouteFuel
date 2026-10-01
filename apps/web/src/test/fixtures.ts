@@ -1,4 +1,4 @@
-import type { SearchRequest, SearchResponse, StationResult } from "@routefuel/shared";
+import type { SearchRequest, SearchResponse, StationDetailResponse, StationResult } from "@routefuel/shared";
 
 let nextId = 100;
 
@@ -122,6 +122,39 @@ export function makeResponse(overrides: Partial<SearchResponse> = {}): SearchRes
     pricesUpdatedAt: "2026-09-28T19:13:47.000Z",
     livePrices: { status: "live", tilesTotal: 37, tilesLive: 37, oldestLiveAgeMinutes: 4 },
     refinement: { status: "done" },
+    ...overrides,
+  };
+}
+
+/** Dettaglio stazione (Screen 3) con valori sensati: stazione verificata, Benzina Self scelta, listino con Servito e Diesel. */
+export function makeDetail(overrides: Partial<StationDetailResponse> = {}): StationDetailResponse {
+  return {
+    searchId: "s1",
+    station: {
+      id: 2,
+      nomeImpianto: "1858 BREGNANO",
+      bandiera: "Agip Eni",
+      gestore: "ENIMOOV S.P.A.",
+      indirizzo: "S.P. 31  DELLA PIODA - VIA MILANO  79",
+      comune: "BREGNANO",
+      provincia: "CO",
+      tipoImpianto: "stradale",
+      lat: 45.685986,
+      lon: 9.054773,
+    },
+    selected: { fuelType: "benzina", isSelf: true, servitoOnly: false, price: 1.99, priceUpdatedAt: "2026-09-29T08:00:00.000Z" },
+    prices: [
+      { fuelType: "benzina", isSelf: true, price: 1.99, communicatedAt: "2026-09-29T08:00:00.000Z" },
+      { fuelType: "benzina", isSelf: false, price: 2.2, communicatedAt: "2026-09-29T08:00:00.000Z" },
+      { fuelType: "diesel", isSelf: true, price: 2.19, communicatedAt: "2026-09-28T08:00:00.000Z" },
+      { fuelType: "diesel", isSelf: false, price: 2.4, communicatedAt: "2026-09-28T08:00:00.000Z" },
+    ],
+    liters: 45,
+    referencePrice: { value: 2.139, level: "on_route", sampleSize: 63 },
+    detour: { km: 1.6, minutes: 2.9, source: "routing" },
+    impact: { grossSavings: 6.71, detourCost: 0.75, netSavings: 5.96, priceDifferencePerLiter: -0.149, priceDifferencePercent: -7 },
+    lateralDistanceKm: 0.8,
+    alongRouteKm: 9.3,
     ...overrides,
   };
 }

@@ -7,6 +7,7 @@ import type {
   SearchRefinementResponse,
   SearchRequest,
   SearchResponse,
+  StationDetailResponse,
   StationRouteResponse,
 } from "@routefuel/shared";
 
@@ -78,4 +79,9 @@ export function fetchRefinement(searchId: string, signal: AbortSignal): Promise<
 /** Percorso A→stazione→B di una stazione tra i risultati (route con sosta). Fallisce se il routing non è disponibile. */
 export function fetchStationRoute(searchId: string, stationId: number, signal: AbortSignal): Promise<StationRouteResponse> {
   return request<StationRouteResponse>(`/search/${searchId}/stations/${stationId}/route`, { signal });
+}
+
+/** Dettaglio di una stazione per una ricerca (Screen 3): deviazione verificata on-demand, prezzi, impatto. */
+export function fetchStationDetail(searchId: string, stationId: number, signal: AbortSignal): Promise<StationDetailResponse> {
+  return request<StationDetailResponse>(`/search/${searchId}/stations/${stationId}`, { signal });
 }

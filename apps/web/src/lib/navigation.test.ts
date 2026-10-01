@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { detectPlatform, navigationLink, navigationLinks, primaryNavigationLink } from "./navigation";
+import { describe, expect, it, vi } from "vitest";
+import { detectPlatform, navigationLink, navigationLinks, primaryNavigationLink, launchNavigation } from "./navigation";
 
 const target = { name: "1858 BREGNANO", lat: 45.685986, lon: 9.054773 };
 
@@ -63,5 +63,38 @@ describe("primaryNavigationLink / navigationLinks", () => {
 
   it("il menu offre Google Maps, Apple Maps e Waze", () => {
     expect(navigationLinks(target).map((l) => l.label)).toEqual(["Google Maps", "Apple Maps", "Waze"]);
+  });
+});
+
+describe("launchNavigation (Apri nel Navigatore)", () => {
+  const target = { name: "1858 BREGNANO", lat: 45.685986, lon: 9.054773 };
+  const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+  const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36";
+  const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36";
+
+  it("iOS apre Apple Maps con le coordinate corrette", () => {
+    const open = vi.fn();
+    const link = launchNavigation(target, { userAgent: IPHONE, maxTouchPoints: 5, open });
+    expect(link?.app).toBe("apple");
+    expect(open).toHaveBeenCalledWith(expect.stringContaining("daddr=45.685986,9.054773"), "_blank", "noopener,noreferrer");
+  });
+
+  it("Android apre Google Maps con le coordinate corrette", () => {
+    const open = vi.fn();
+    const link = launchNavigation(target, { userAgent: ANDROID, maxTouchPoints: 5, open });
+    expect(link?.app).toBe("google");
+    expect(open).toHaveBeenCalledWith(expect.stringContaining("destination=45.685986,9.054773"), "_blank", "noopener,noreferrer");
+  });
+
+  it("iPadOS (si presenta come Mac, ma con multitouch) conta come iOS", () => {
+    const open = vi.fn();
+    expect(launchNavigation(target, { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 5, open })?.app).toBe("apple");
+  });
+
+  it("desktop o sistema sconosciuto: non apre nulla e restituisce null (serve il menu)", () => {
+    const open = vi.fn();
+    expect(launchNavigation(target, { userAgent: WINDOWS, maxTouchPoints: 0, open })).toBeNull();
+    expect(launchNavigation(target, { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 0, open })).toBeNull();
+    expect(open).not.toHaveBeenCalled();
   });
 });

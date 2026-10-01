@@ -1,5 +1,5 @@
 import { sortResults, type ResultSortMode } from "@routefuel/core";
-import type { SearchFuelType, StationResult } from "@routefuel/shared";
+import type { ReferencePriceLevel, SearchFuelType, StationResult } from "@routefuel/shared";
 
 /**
  * Ordinamento e filtri della lista risultati, tutti lato client: cambiare filtro non fa alcuna chiamata di rete.
@@ -76,4 +76,21 @@ const FUEL_LABEL: Record<SearchFuelType, string> = {
 /** "Benzina Self" / "Diesel Servito", come sotto il prezzo nella card. */
 export function fuelModeLabel(fuelType: SearchFuelType, isSelf: boolean): string {
   return `${FUEL_LABEL[fuelType]} ${isSelf ? "Self" : "Servito"}`;
+}
+
+/** Nome del carburante, es. "Benzina". */
+export function fuelLabel(fuelType: SearchFuelType): string {
+  return FUEL_LABEL[fuelType];
+}
+
+/** Come è stato ricavato il prezzo di riferimento (P_avg), per le didascalie. */
+export function referenceLevelText(level: ReferencePriceLevel, sampleSize: number): string {
+  switch (level) {
+    case "on_route":
+      return `mediana di ${sampleSize} stazioni sul percorso`;
+    case "corridor":
+      return `mediana di ${sampleSize} stazioni nel corridoio`;
+    case "national":
+      return "mediana nazionale, poche stazioni sul tratto";
+  }
 }

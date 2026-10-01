@@ -35,3 +35,36 @@
     display: none;
   }
 }
+
+@layer components {
+  /*
+   * Sfocatura progressiva (DESIGN.md — CTA flottante): tre strati con sfocatura crescente verso il basso, ciascuno
+   * mascherato da un gradiente, così il contenuto che scorre sotto la CTA sfuma senza un bordo netto. Dove
+   * `backdrop-filter` non c'è resta solo la sfumatura verso il colore di superficie.
+   */
+  .progressive-blur {
+    pointer-events: none;
+    background: linear-gradient(to top, theme("colors.surface / 0.9"), theme("colors.surface / 0"));
+  }
+  .progressive-blur > span {
+    position: absolute;
+    inset: 0;
+    -webkit-backdrop-filter: blur(var(--blur));
+    backdrop-filter: blur(var(--blur));
+  }
+  .progressive-blur > span:nth-child(1) {
+    --blur: 2px;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, #000 45%, transparent 75%);
+    mask-image: linear-gradient(to top, #000 0%, #000 45%, transparent 75%);
+  }
+  .progressive-blur > span:nth-child(2) {
+    --blur: 6px;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, #000 25%, transparent 55%);
+    mask-image: linear-gradient(to top, #000 0%, #000 25%, transparent 55%);
+  }
+  .progressive-blur > span:nth-child(3) {
+    --blur: 14px;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 35%);
+    mask-image: linear-gradient(to top, #000 0%, transparent 35%);
+  }
+}
