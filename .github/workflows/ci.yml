@@ -1,4 +1,4 @@
-# CI di RouteFuel: un solo workflow e un solo job, per restare entro i 2.000 minuti/mese del piano free privato.
+# CI di RouteFuel (Node 24, come in locale): un solo workflow e un solo job, per restare entro i 2.000 minuti/mese del piano free privato.
 # Esegue i test ermetici (zero rete, zero database: `pnpm test`) e il typecheck. I test su PostgreSQL (`pnpm test:db`)
 # non girano qui: richiedono un database e si lanciano in locale.
 name: CI
@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
