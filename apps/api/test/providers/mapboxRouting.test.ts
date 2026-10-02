@@ -110,3 +110,21 @@ describe("MapboxRoutingProvider", () => {
     await expect(provider.getRoute(Array.from({ length: 26 }, () => A))).rejects.toThrow(RangeError);
   });
 });
+
+describe("MapboxRoutingProvider — «Evita autostrada»", () => {
+  it("con avoidMotorway aggiunge exclude=motorway", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(okBody));
+    await new MapboxRoutingProvider({ token: TOKEN, fetchImpl }).getRoute([A, S, B], { avoidMotorway: true });
+    const url = new URL(fetchImpl.mock.calls[0]![0] as string);
+    expect(url.searchParams.get("exclude")).toBe("motorway");
+    expect(url.searchParams.get("geometries")).toBe("geojson");
+  });
+
+  it("senza avoidMotorway (o a false) non c'è alcun exclude", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => jsonResponse(okBody));
+    const provider = new MapboxRoutingProvider({ token: TOKEN, fetchImpl });
+    await provider.getRoute([A, B]);
+    await provider.getRoute([A, B], { avoidMotorway: false });
+    for (const call of fetchImpl.mock.calls) expect(new URL(call[0] as string).searchParams.has("exclude")).toBe(false);
+  });
+});

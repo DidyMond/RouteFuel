@@ -228,3 +228,36 @@ describe("InMemoryUsageCounter", () => {
     expect(await counter.get("c", "2026-09")).toBe(0);
   });
 });
+
+describe("«Evita autostrada» nei decoratori di routing", () => {
+  const route: RouteResult = { distanceKm: 10, durationMinutes: 12, geometry: [[0, 0], [1, 1]] };
+  const A = { lon: 9, lat: 45 };
+  const B = { lon: 10, lat: 45 };
+
+  it("la cache tiene separati il percorso normale e quello senza autostrada (sono risposte diverse)", async () => {
+    const getRoute = vi.fn(async () => route);
+    const cached = new CachedRoutingProvider({ getRoute } as RoutingProvider);
+    await cached.getRoute([A, B]);
+    await cached.getRoute([A, B], { avoidMotorway: true });
+    expect(getRoute).toHaveBeenCalledTimes(2);
+    await cached.getRoute([A, B]);
+    await cached.getRoute([A, B], { avoidMotorway: true });
+    expect(getRoute).toHaveBeenCalledTimes(2); // ora entrambe servite dalla cache
+  });
+
+  it("un avoidMotorway a false vale come assente (stessa voce di cache)", async () => {
+    const getRoute = vi.fn(async () => route);
+    const cached = new CachedRoutingProvider({ getRoute } as RoutingProvider);
+    await cached.getRoute([A, B]);
+    await cached.getRoute([A, B], { avoidMotorway: false });
+    expect(getRoute).toHaveBeenCalledTimes(1);
+  });
+
+  it("il decoratore del kill switch inoltra le opzioni al provider", async () => {
+    const getRoute = vi.fn(async () => route);
+    const counter = new InMemoryUsageCounter();
+    const budget = new DirectionsBudget({ counter, softLimit: 80_000, hardLimit: 98_000 });
+    await new BudgetedRoutingProvider({ getRoute } as RoutingProvider, budget).getRoute([A, B], { avoidMotorway: true });
+    expect(getRoute).toHaveBeenCalledWith([A, B], { avoidMotorway: true });
+  });
+});

@@ -18,6 +18,8 @@ export const searchRequestSchema = z
     valueOfTimePerMinute: z.number().min(0).max(2).default(0.15),
     onlySelf: z.boolean().default(true),
     maxPriceAgeHours: z.number().int().min(1).max(720).default(72),
+    avoidMotorway: z.boolean().default(false),
+    referencePriceOverride: z.number().min(0.5).max(4).optional(),
   })
   .refine((value) => value.origin.lon !== value.destination.lon || value.origin.lat !== value.destination.lat, {
     message: "Origine e destinazione coincidono",

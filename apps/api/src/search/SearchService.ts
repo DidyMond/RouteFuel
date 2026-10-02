@@ -32,7 +32,7 @@ import type {
 } from "@routefuel/shared";
 import { AppError, BudgetExhaustedError } from "../errors";
 import type { BudgetGate } from "../providers/routing/DirectionsBudget";
-import type { RouteResult, RoutingProvider } from "../providers/routing/RoutingProvider";
+import type { RouteOptions, RouteResult, RoutingProvider } from "../providers/routing/RoutingProvider";
 import type { CorridorPriceRow, StationRepository } from "./StationRepository";
 import type { SearchSession, SearchSessionStore } from "./SearchSessionStore";
 
@@ -90,7 +90,7 @@ export class SearchService {
    * il client legge l'esito con getRefinement().
    */
   async search(request: SearchRequest): Promise<SearchResponse> {
-    const route = await this.deps.routing.getRoute([request.origin, request.destination]);
+    const route = await this.deps.routing.getRoute([request.origin, request.destination], routeOptions(request));
     if (!route) {
       throw new AppError("NO_ROUTE", 422, "Nessun percorso stradale trovato tra origine e destinazione.");
     }
@@ -129,7 +129,11 @@ export class SearchService {
       lateralDistanceKm: c.lateralDistanceKm,
       price: c.price.price,
     }));
-    const reference = computeReferencePrice(samples, national);
+    // Prezzo di riferimento impostato dall'utente: sostituisce del tutto la cascata automatica (nessun blending).
+    const reference =
+      request.referencePriceOverride !== undefined
+        ? { value: request.referencePriceOverride, level: "manual" as const, sampleSize: 0 }
+        : computeReferencePrice(samples, national);
     if (!reference) {
       throw new AppError(
         "NO_PRICE_DATA",
@@ -201,11 +205,10 @@ export class SearchService {
   /** Routing A→stazione→B e deviazione coerente rispetto al diretto. Stessa chiamata della verifica (cache). */
   private async routeViaStation(session: SearchSession, result: StationResult): Promise<{ via: RouteResult; detour: Detour }> {
     const { request, route } = session;
-    const via = await this.deps.routing.getRoute([
-      request.origin,
-      { lon: result.station.lon, lat: result.station.lat },
-      request.destination,
-    ]);
+    const via = await this.deps.routing.getRoute(
+      [request.origin, { lon: result.station.lon, lat: result.station.lat }, request.destination],
+      routeOptions(request),
+    );
     if (!via) throw new AppError("NO_ROUTE", 422, "Nessun percorso stradale trovato passando da questa stazione.");
     return { via, detour: computeRoutedDetour(route, via, result.lateralDistanceKm) };
   }
@@ -323,11 +326,10 @@ export class SearchService {
           batch.map(async (result) => {
             attempted.add(result.station.id);
             try {
-              const via = await this.deps.routing.getRoute([
-                request.origin,
-                { lon: result.station.lon, lat: result.station.lat },
-                request.destination,
-              ]);
+              const via = await this.deps.routing.getRoute(
+                [request.origin, { lon: result.station.lon, lat: result.station.lat }, request.destination],
+                routeOptions(request),
+              );
               if (!via) {
                 failures += 1;
                 return { result, detour: null };
@@ -484,6 +486,11 @@ const FUEL_ORDER: Record<StationPriceEntry["fuelType"], number> = { benzina: 0, 
 /** Ordine stabile della matrice prezzi: benzina, diesel, GPL, metano; per ciascuno prima il Self. */
 function sortPrices(prices: readonly StationPriceEntry[]): StationPriceEntry[] {
   return [...prices].sort((a, b) => FUEL_ORDER[a.fuelType] - FUEL_ORDER[b.fuelType] || Number(b.isSelf) - Number(a.isSelf));
+}
+
+/** «Evita autostrada»: lo stesso tipo di percorso per il diretto e per le verifiche, così la deviazione è confrontabile. */
+function routeOptions(request: SearchRequest): RouteOptions {
+  return { avoidMotorway: request.avoidMotorway };
 }
 
 function clamp(value: number, min: number, max: number): number {

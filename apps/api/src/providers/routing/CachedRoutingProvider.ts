@@ -1,5 +1,5 @@
 import type { LonLat } from "@routefuel/shared";
-import type { RouteResult, RoutingProvider } from "./RoutingProvider";
+import type { RouteOptions, RouteResult, RoutingProvider } from "./RoutingProvider";
 
 export interface CachedRoutingProviderOptions {
   /** Durata di vita di una risposta in cache. Breve di proposito: nessuna persistenza dei risultati Mapbox. */
@@ -34,14 +34,14 @@ export class CachedRoutingProvider implements RoutingProvider {
     this.now = options.now ?? Date.now;
   }
 
-  getRoute(waypoints: readonly LonLat[]): Promise<RouteResult | null> {
-    const key = cacheKey(waypoints);
+  getRoute(waypoints: readonly LonLat[], options?: RouteOptions): Promise<RouteResult | null> {
+    const key = cacheKey(waypoints, options);
     const cached = this.entries.get(key);
     if (cached && cached.expiresAt > this.now()) {
       return cached.promise;
     }
 
-    const promise = this.inner.getRoute(waypoints);
+    const promise = this.inner.getRoute(waypoints, options);
     this.entries.set(key, { expiresAt: this.now() + this.ttlMs, promise });
     this.evictIfNeeded();
 
@@ -64,7 +64,11 @@ export class CachedRoutingProvider implements RoutingProvider {
   }
 }
 
-/** Coordinate arrotondate a 4 decimali (~11 m): richieste quasi identiche condividono la voce. */
-function cacheKey(waypoints: readonly LonLat[]): string {
-  return waypoints.map((point) => `${point.lon.toFixed(4)},${point.lat.toFixed(4)}`).join("|");
+/**
+ * Coordinate arrotondate a 4 decimali (~11 m): richieste quasi identiche condividono la voce. Il percorso senza
+ * autostrada è un'altra risposta: ha una chiave diversa.
+ */
+function cacheKey(waypoints: readonly LonLat[], options?: RouteOptions): string {
+  const points = waypoints.map((point) => `${point.lon.toFixed(4)},${point.lat.toFixed(4)}`).join("|");
+  return options?.avoidMotorway ? `${points}#no-motorway` : points;
 }

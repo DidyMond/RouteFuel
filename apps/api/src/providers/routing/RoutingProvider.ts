@@ -8,6 +8,12 @@ export interface RouteResult {
   geometry: Coordinate[];
 }
 
+/** Opzioni di una richiesta di percorso. */
+export interface RouteOptions {
+  /** Percorso senza autostrada (Directions `exclude=motorway`). */
+  avoidMotorway?: boolean;
+}
+
 /**
  * Astrae il motore di routing (RouteFuel non ne costruisce uno proprio).
  * Implementazioni: MapboxRoutingProvider (produzione), MockRoutingProvider (test/dev senza chiavi).
@@ -19,5 +25,5 @@ export interface RoutingProvider {
    * Restituisce null se non esiste un percorso; lancia un errore per problemi
    * di rete, credenziali o quota.
    */
-  getRoute(waypoints: readonly LonLat[]): Promise<RouteResult | null>;
+  getRoute(waypoints: readonly LonLat[], options?: RouteOptions): Promise<RouteResult | null>;
 }
