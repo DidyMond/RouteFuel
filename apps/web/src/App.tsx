@@ -6,11 +6,22 @@ import { Header } from "./components/Header";
 import { ResultsScreen } from "./components/results/ResultsScreen";
 import { SearchError } from "./components/SearchError";
 import { SearchForm } from "./components/SearchForm";
+import { SettingsScreen } from "./components/settings/SettingsScreen";
 import { StationDetailScreen } from "./components/station/StationDetailScreen";
 import { useSearch } from "./hooks/useSearch";
+import { SettingsProvider, useSettings } from "./hooks/useSettings";
 
 export default function App() {
+  return (
+    <SettingsProvider>
+      <AppShell />
+    </SettingsProvider>
+  );
+}
+
+function AppShell() {
   const { state, search } = useSearch();
+  const { rememberAutomaticReference } = useSettings();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -22,6 +33,14 @@ export default function App() {
     lastNavigatedSearch.current = state.response.searchId;
     navigate("/results");
   }, [state, navigate]);
+
+  // L'ultimo prezzo di riferimento AUTOMATICO di ogni carburante serve a pre-compilare «Manuale» nelle Impostazioni.
+  const successId = state.status === "success" ? state.response.searchId : null;
+  useEffect(() => {
+    if (state.status !== "success" || state.response.referencePrice.level === "manual") return;
+    rememberAutomaticReference(state.request.fuelType, state.response.referencePrice.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per ricerca.
+  }, [successId]);
 
   // Mentre il server cerca si scarica già il codice della mappa (chunk separato): compare prima sui Risultati.
   const searching = state.status === "loading";
@@ -57,6 +76,7 @@ export default function App() {
         <Route path="/" element={null} />
         <Route path="/results" element={state.status === "success" ? null : <Navigate to="/" replace />} />
         <Route path="/station/:searchId/:stationId" element={<StationDetailScreen />} />
+        <Route path="/settings" element={<SettingsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

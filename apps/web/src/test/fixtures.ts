@@ -48,6 +48,7 @@ export const REQUEST: SearchRequest = {
   valueOfTimePerMinute: 0.15,
   onlySelf: false,
   maxPriceAgeHours: 72,
+  avoidMotorway: false,
 };
 
 /** Tre stazioni con ordinamenti diversi per risparmio, deviazione e distanza dal tracciato. */

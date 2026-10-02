@@ -330,6 +330,38 @@ describe("ResultsScreen — contrasto del testo piccolo (WCAG AA, regola ≤14px
   });
 });
 
+describe("ResultsScreen — «Evita autostrada» e prezzo di riferimento manuale", () => {
+  it("senza «Evita autostrada» non c'è alcun badge", () => {
+    render(<ResultsScreen state={makeState()} />);
+    expect(screen.queryByTestId("avoid-motorway-badge")).not.toBeInTheDocument();
+  });
+
+  it("con «Evita autostrada» attivo un badge visibile dice qual è la baseline delle deviazioni", () => {
+    render(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidMotorway: true } })} />);
+    const badge = screen.getByTestId("avoid-motorway-badge");
+    expect(badge).toBeVisible();
+    expect(badge).toHaveTextContent("Evita autostrada attivo");
+    expect(badge).toHaveTextContent("percorso senza autostrada");
+    expect(badge).toHaveAttribute("title", expect.stringContaining("senza autostrada"));
+    expect(badge).toHaveClass("rounded-full", "text-on-secondary-fixed-variant");
+  });
+
+  it("il badge sta nel foglio dei risultati, sopra le schede", () => {
+    render(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidMotorway: true } })} />);
+    const sheet = screen.getByTestId("sheet-scroll");
+    expect(sheet).toContainElement(screen.getByTestId("avoid-motorway-badge"));
+    const badge = screen.getByTestId("avoid-motorway-badge");
+    const firstCard = screen.getAllByTestId("station-card")[0]!;
+    expect(badge.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("riferimento impostato a mano: lo dichiara invece di parlare di mediane", () => {
+    const response = makeResponse({ referencePrice: { value: 2.3, level: "manual", sampleSize: 0 } });
+    render(<ResultsScreen state={makeState({ response, results: response.results })} />);
+    expect(screen.getByTestId("reference-price")).toHaveTextContent("Prezzo di riferimento €2,300/L (impostato da te nelle Impostazioni)");
+  });
+});
+
 describe("ResultsScreen — banner fonte dati", () => {
   it("mostra timestamp del file MIMIT e stato «in tempo reale»", () => {
     render(<ResultsScreen state={makeState()} />);

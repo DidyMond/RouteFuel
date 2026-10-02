@@ -5,7 +5,7 @@ import { useStopRoute } from "../../hooks/useStopRoute";
 import { formatPrice } from "../../lib/format";
 import { launchNavigation } from "../../lib/navigation";
 import { applyFilters, bestStationId, DEFAULT_SORT, fuelModeLabel, referenceLevelText, type SortMode } from "../../lib/stationView";
-import { CheckIcon, InfoIcon, RouteIcon, SavingsIcon, SpinnerIcon } from "../icons";
+import { CheckIcon, InfoIcon, RoadIcon, RouteIcon, SavingsIcon, SpinnerIcon } from "../icons";
 import type { MapStation } from "./MapCanvas";
 import { MapView } from "./MapView";
 import { NavigateSheet } from "./NavigateSheet";
@@ -232,6 +232,16 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
               </Chip>
             </div>
             <RefinementNotice refinement={refinement} />
+            {request.avoidMotorway && (
+              <p
+                data-testid="avoid-motorway-badge"
+                title="Percorso diretto e verifiche senza autostrada: le deviazioni sono misurate contro il percorso senza autostrada"
+                className="self-start inline-flex items-center gap-1.5 min-h-[26px] px-space-md rounded-full bg-secondary/10 text-on-secondary-fixed-variant text-label-md font-label-md"
+              >
+                <RoadIcon className="w-3.5 h-3.5" />
+                Evita autostrada attivo · deviazioni contro il percorso senza autostrada
+              </p>
+            )}
             <p data-testid="reference-price" className="text-body-sm font-body-sm text-on-surface-variant tabular-nums">
               Prezzo di riferimento €{formatPrice(response.referencePrice.value)}/L ({referenceLevelText(response.referencePrice.level, response.referencePrice.sampleSize)})
             </p>

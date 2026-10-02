@@ -1,0 +1,160 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SettingsProvider, useSettings } from "../hooks/useSettings";
+import { FACTORY_SETTINGS, resetSettingsMemory, saveSettings, type Settings } from "../lib/settings";
+import { SearchForm } from "./SearchForm";
+
+const suggestions = [
+  { id: "a", name: "Via Alessandro Volta 3", label: "Via Alessandro Volta 3, 20816 Ceriano Laghetto", lon: 9.079, lat: 45.628 },
+  { id: "b", name: "Via del Seprio 42", label: "Via del Seprio 42, 22074 Lomazzo", lon: 9.023, lat: 45.699 },
+];
+
+beforeEach(() => {
+  localStorage.clear();
+  resetSettingsMemory();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => ({ suggestions }) })),
+  );
+});
+afterEach(() => vi.unstubAllGlobals());
+
+function Harness({ onSubmit, next }: { onSubmit: (request: unknown, labels: unknown) => void; next?: Settings }) {
+  const { save } = useSettings();
+  return (
+    <>
+      {next && (
+        <button type="button" onClick={() => save(next)}>
+          applica impostazioni
+        </button>
+      )}
+      <SearchForm onSubmit={onSubmit} busy={false} />
+    </>
+  );
+}
+
+function renderForm(props: { next?: Settings; settings?: Settings } = {}) {
+  if (props.settings) saveSettings(props.settings);
+  const onSubmit = vi.fn();
+  render(
+    <SettingsProvider>
+      <Harness onSubmit={onSubmit} next={props.next} />
+    </SettingsProvider>,
+  );
+  return onSubmit;
+}
+
+async function chooseRoute(user: ReturnType<typeof userEvent.setup>) {
+  for (const [placeholder, index] of [
+    ["Da dove parti?", 0],
+    ["Dove vuoi andare?", 1],
+  ] as const) {
+    await user.type(screen.getByPlaceholderText(placeholder), index === 0 ? "via volta" : "via seprio");
+    const option = (await screen.findAllByRole("option"))[index]!;
+    await user.click(option);
+  }
+}
+
+const submit = async (user: ReturnType<typeof userEvent.setup>) => {
+  await chooseRoute(user);
+  await user.click(screen.getByRole("button", { name: "Trova il carburante più conveniente" }));
+};
+
+const settings = (patch: Partial<Settings>): Settings => ({ ...FACTORY_SETTINGS, ...patch });
+
+describe("SearchForm — precompilazione dalle Impostazioni", () => {
+  it("senza impostazioni salvate parte dai valori di fabbrica", () => {
+    renderForm();
+    expect(screen.getByRole("radio", { name: "Benzina" })).toBeChecked();
+    expect(screen.getByText("45 L")).toBeInTheDocument();
+    expect(screen.getByLabelText("Consumo del veicolo")).toHaveValue("15");
+  });
+
+  it("usa carburante predefinito, serbatoio e consumo salvati", () => {
+    renderForm({
+      settings: settings({ vehicle: { ...FACTORY_SETTINGS.vehicle, defaultFuel: "diesel", tankLiters: 60 }, consumptionKmPerLiter: 18.5 }),
+    });
+    expect(screen.getByRole("radio", { name: "Diesel" })).toBeChecked();
+    expect(screen.getByText("60 L")).toBeInTheDocument();
+    expect(screen.getByLabelText("Consumo del veicolo")).toHaveValue("18.5");
+  });
+
+  it("quando le Impostazioni cambiano la ricerca successiva riparte dai nuovi default", async () => {
+    const user = userEvent.setup();
+    renderForm({ next: settings({ vehicle: { ...FACTORY_SETTINGS.vehicle, defaultFuel: "gpl", tankLiters: 35 }, consumptionKmPerLiter: 12 }) });
+    expect(screen.getByRole("radio", { name: "Benzina" })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "applica impostazioni" }));
+    expect(screen.getByRole("radio", { name: "GPL" })).toBeChecked();
+    expect(screen.getByText("35 L")).toBeInTheDocument();
+    expect(screen.getByLabelText("Consumo del veicolo")).toHaveValue("12");
+  });
+
+  it("«Ripristina» del consumo torna al valore salvato nelle Impostazioni", async () => {
+    const user = userEvent.setup();
+    renderForm({ settings: settings({ consumptionKmPerLiter: 18 }) });
+    const input = screen.getByLabelText("Consumo del veicolo");
+    await user.clear(input);
+    await user.type(input, "22");
+    await user.click(screen.getByRole("button", { name: "Ripristina" }));
+    expect(input).toHaveValue("18");
+  });
+});
+
+describe("SearchForm — richiesta con i parametri delle Impostazioni", () => {
+  it("di fabbrica: V_time 0,15, soglia 72 h, autostrada ammessa, nessun prezzo di riferimento manuale", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm();
+    await submit(user);
+    const request = onSubmit.mock.calls[0]![0];
+    expect(request).toMatchObject({ fuelType: "benzina", liters: 45, consumptionKmPerLiter: 15, valueOfTimePerMinute: 0.15, maxPriceAgeHours: 72, avoidMotorway: false });
+    expect(request).not.toHaveProperty("referencePriceOverride");
+  });
+
+  it("invia V_time, soglia di freschezza e «Evita autostrada» salvati", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ valueOfTimePerMinute: 0.4, maxPriceAgeHours: 24, avoidMotorway: true }) });
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ valueOfTimePerMinute: 0.4, maxPriceAgeHours: 24, avoidMotorway: true });
+  });
+
+  it("prezzo di riferimento manuale: invia il valore del carburante cercato", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ referenceMode: "manual", manualReference: { benzina: 1.95, diesel: 1.8 } }) });
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ fuelType: "benzina", referencePriceOverride: 1.95 });
+  });
+
+  it("cambiando carburante nel form si usa il valore manuale di QUEL carburante", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ referenceMode: "manual", manualReference: { benzina: 1.95, diesel: 1.8 } }) });
+    await user.click(screen.getByRole("radio", { name: "Diesel" }));
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ fuelType: "diesel", referencePriceOverride: 1.8 });
+  });
+
+  it("manuale ma senza valore per il carburante cercato: nessun override (calcolo automatico)", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ referenceMode: "manual", manualReference: { benzina: 1.95 } }) });
+    await user.click(screen.getByRole("radio", { name: "GPL" }));
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).not.toHaveProperty("referencePriceOverride");
+  });
+
+  it("modalità Automatico: i valori manuali memorizzati non vengono inviati", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ referenceMode: "auto", manualReference: { benzina: 1.95 } }) });
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).not.toHaveProperty("referencePriceOverride");
+  });
+
+  it("la richiesta non contiene altro che coordinate scelte nel form: nulla delle impostazioni è un indirizzo", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ vehicle: { ...FACTORY_SETTINGS.vehicle, modelName: "Panda" } }) });
+    await submit(user);
+    expect(JSON.stringify(onSubmit.mock.calls[0]![0])).not.toContain("Panda"); // il modello non entra nella ricerca
+    const labels = onSubmit.mock.calls[0]![1] as { origin: string; destination: string };
+    expect(labels.origin).toContain("Ceriano Laghetto");
+  });
+});

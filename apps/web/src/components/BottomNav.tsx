@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { GasStationIcon, SearchIcon } from "./icons";
+import { GasStationIcon, SearchIcon, SettingsIcon } from "./icons";
 
 interface BottomNavProps {
   /** La scheda Risultati è raggiungibile solo dopo una ricerca riuscita. */
@@ -12,8 +12,7 @@ const inactive = "text-on-surface-variant hover:text-on-surface";
 
 /**
  * Navigazione globale (DESIGN.md — Bottom Navigation): pillola flottante con icona sopra e etichetta sotto.
- * Ci sono solo le schede che portano a schermate esistenti: «Percorso» (Screen 4) è sospesa e «Impostazioni»
- * (Screen 5) arriva in Milestone 4.
+ * Tre schede: Cerca, Risultati (attiva dopo una ricerca) e Impostazioni. «Percorso» (Screen 4) è sospesa.
  */
 export function BottomNav({ hasResults }: BottomNavProps) {
   return (
@@ -37,6 +36,10 @@ export function BottomNav({ hasResults }: BottomNavProps) {
             <span className="text-label-sm font-label-sm whitespace-nowrap">Risultati</span>
           </span>
         )}
+        <NavLink to="/settings" className={({ isActive }) => `${base} ${isActive ? active : inactive}`}>
+          <SettingsIcon />
+          <span className="text-label-sm font-label-sm whitespace-nowrap">Impostazioni</span>
+        </NavLink>
       </div>
     </nav>
   );

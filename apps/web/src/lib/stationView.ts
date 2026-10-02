@@ -92,5 +92,7 @@ export function referenceLevelText(level: ReferencePriceLevel, sampleSize: numbe
       return `mediana di ${sampleSize} stazioni nel corridoio`;
     case "national":
       return "mediana nazionale, poche stazioni sul tratto";
+    case "manual":
+      return "impostato da te nelle Impostazioni";
   }
 }
