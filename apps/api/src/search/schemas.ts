@@ -15,10 +15,12 @@ export const searchRequestSchema = z
     liters: z.number().min(1).max(200).default(45),
     maxDetourKm: z.number().min(1).max(10).default(5),
     consumptionKmPerLiter: z.number().min(3).max(40).default(15),
-    valueOfTimePerMinute: z.number().min(0).max(2).default(0.15),
+    valueOfTimePerMinute: z.number().min(0).max(1).default(0.15),
     onlySelf: z.boolean().default(true),
     maxPriceAgeHours: z.number().int().min(1).max(720).default(72),
     avoidMotorway: z.boolean().default(false),
+    avoidTolls: z.boolean().default(false),
+    avoidFerries: z.boolean().default(false),
     referencePriceOverride: z.number().min(0.5).max(4).optional(),
   })
   .refine((value) => value.origin.lon !== value.destination.lon || value.origin.lat !== value.destination.lat, {

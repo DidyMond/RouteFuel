@@ -52,7 +52,7 @@ describe("POST /search — contratto delle Impostazioni (M4)", () => {
     const { app, routing, searchService } = await makeApp();
     const response = await app.inject({ method: "POST", url: "/search", payload: { ...body, avoidMotorway: true } });
     expect(response.statusCode).toBe(200);
-    expect(routing.callOptions[0]).toEqual({ avoidMotorway: true });
+    expect(routing.callOptions[0]).toEqual({ avoidMotorway: true, avoidTolls: false, avoidFerries: false });
     await searchService.waitForRefinement(response.json().searchId);
     expect(routing.callOptions.every((o) => o.avoidMotorway === true)).toBe(true);
   });
@@ -61,7 +61,24 @@ describe("POST /search — contratto delle Impostazioni (M4)", () => {
     const { app, routing } = await makeApp();
     const response = await app.inject({ method: "POST", url: "/search", payload: body });
     expect(response.statusCode).toBe(200);
-    expect(routing.callOptions[0]).toEqual({ avoidMotorway: false });
+    expect(routing.callOptions[0]).toEqual({ avoidMotorway: false, avoidTolls: false, avoidFerries: false });
+  });
+
+  it("avoidTolls e avoidFerries sono accettati, valgono false se assenti e arrivano al routing", async () => {
+    const { app, routing, searchService } = await makeApp();
+    const response = await app.inject({ method: "POST", url: "/search", payload: { ...body, avoidTolls: true, avoidFerries: true } });
+    expect(response.statusCode).toBe(200);
+    expect(routing.callOptions[0]).toEqual({ avoidMotorway: false, avoidTolls: true, avoidFerries: true });
+    await searchService.waitForRefinement(response.json().searchId);
+    expect(routing.callOptions.every((o) => o.avoidTolls === true && o.avoidFerries === true)).toBe(true);
+  });
+
+  it("avoidTolls / avoidFerries non booleani → 400", async () => {
+    const { app } = await makeApp();
+    for (const extra of [{ avoidTolls: "sì" }, { avoidFerries: 1 }]) {
+      const response = await app.inject({ method: "POST", url: "/search", payload: { ...body, ...extra } });
+      expect(response.statusCode, JSON.stringify(extra)).toBe(400);
+    }
   });
 
   it("avoidMotorway non booleano → 400", async () => {
@@ -69,6 +86,26 @@ describe("POST /search — contratto delle Impostazioni (M4)", () => {
     const response = await app.inject({ method: "POST", url: "/search", payload: { ...body, avoidMotorway: "sì" } });
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("valueOfTimePerMinute fuori da 0,00–1,00 → 400", async () => {
+    const { app } = await makeApp();
+    for (const value of [-0.01, 1.01, 2]) {
+      const response = await app.inject({ method: "POST", url: "/search", payload: { ...body, valueOfTimePerMinute: value } });
+      expect(response.statusCode, String(value)).toBe(400);
+    }
+  });
+
+  it("valueOfTimePerMinute = 0 («Solo denaro»): il tempo non entra in S_net", async () => {
+    const { app } = await makeApp();
+    const free = (await app.inject({ method: "POST", url: "/search", payload: { ...body, valueOfTimePerMinute: 0 } })).json();
+    const costly = (await app.inject({ method: "POST", url: "/search", payload: { ...body, valueOfTimePerMinute: 1 } })).json();
+    type Body = { results: { station: { id: number }; netSavings: number }[] };
+    const nets = (r: Body) => new Map(r.results.map((x) => [x.station.id, x.netSavings]));
+    const a = nets(free);
+    const b = nets(costly);
+    expect(a.size).toBeGreaterThan(0);
+    for (const [id, net] of a) expect(net).toBeGreaterThan(b.get(id) ?? Number.NEGATIVE_INFINITY);
   });
 
   it("referencePriceOverride valido: la risposta usa il livello «manual» e quel valore", async () => {
@@ -86,9 +123,9 @@ describe("POST /search — contratto delle Impostazioni (M4)", () => {
     }
   });
 
-  it("valueOfTimePerMinute e maxPriceAgeHours delle Impostazioni (0,05–1,00 €/min; ore) sono accettati", async () => {
+  it("valueOfTimePerMinute (0,00–1,00 €/min: dal «Solo denaro» all'«Ho fretta») e maxPriceAgeHours delle Impostazioni sono accettati", async () => {
     const { app } = await makeApp();
-    for (const extra of [{ valueOfTimePerMinute: 0.05 }, { valueOfTimePerMinute: 1 }, { maxPriceAgeHours: 24 }, { maxPriceAgeHours: 168 }]) {
+    for (const extra of [{ valueOfTimePerMinute: 0 }, { valueOfTimePerMinute: 0.1 }, { valueOfTimePerMinute: 0.25 }, { valueOfTimePerMinute: 1 }, { maxPriceAgeHours: 24 }, { maxPriceAgeHours: 168 }]) {
       const response = await app.inject({ method: "POST", url: "/search", payload: { ...body, ...extra } });
       expect(response.statusCode, JSON.stringify(extra)).toBe(200);
     }

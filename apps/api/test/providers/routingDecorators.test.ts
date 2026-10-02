@@ -253,6 +253,17 @@ describe("«Evita autostrada» nei decoratori di routing", () => {
     expect(getRoute).toHaveBeenCalledTimes(1);
   });
 
+  it("ogni insieme di esclusioni ha la propria voce di cache; l'ordine in cui sono scritte non conta", async () => {
+    const getRoute = vi.fn(async () => route);
+    const cached = new CachedRoutingProvider({ getRoute } as RoutingProvider);
+    const sets = [{}, { avoidMotorway: true }, { avoidTolls: true }, { avoidFerries: true }, { avoidMotorway: true, avoidTolls: true }, { avoidTolls: true, avoidFerries: true }];
+    for (const set of sets) await cached.getRoute([A, B], set);
+    expect(getRoute).toHaveBeenCalledTimes(sets.length); // nessuna collisione tra insiemi diversi
+    await cached.getRoute([A, B], { avoidTolls: true, avoidMotorway: true }); // stesso insieme, ordine diverso
+    await cached.getRoute([A, B], { avoidMotorway: false, avoidTolls: false, avoidFerries: false }); // tutto a false = assente
+    expect(getRoute).toHaveBeenCalledTimes(sets.length);
+  });
+
   it("il decoratore del kill switch inoltra le opzioni al provider", async () => {
     const getRoute = vi.fn(async () => route);
     const counter = new InMemoryUsageCounter();

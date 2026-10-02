@@ -111,6 +111,29 @@ describe("MapboxRoutingProvider", () => {
   });
 });
 
+describe("MapboxRoutingProvider — esclusioni combinate (motorway, toll, ferry)", () => {
+  const exclude = async (options: Parameters<MapboxRoutingProvider["getRoute"]>[1]) => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(okBody));
+    await new MapboxRoutingProvider({ token: TOKEN, fetchImpl }).getRoute([A, B], options);
+    return new URL(fetchImpl.mock.calls[0]![0] as string).searchParams.get("exclude");
+  };
+
+  it("pedaggi → exclude=toll; traghetti → exclude=ferry", async () => {
+    expect(await exclude({ avoidTolls: true })).toBe("toll");
+    expect(await exclude({ avoidFerries: true })).toBe("ferry");
+  });
+
+  it("più esclusioni sono separate da virgola, sempre nello stesso ordine (motorway, toll, ferry)", async () => {
+    expect(await exclude({ avoidMotorway: true, avoidTolls: true })).toBe("motorway,toll");
+    expect(await exclude({ avoidFerries: true, avoidTolls: true })).toBe("toll,ferry");
+    expect(await exclude({ avoidFerries: true, avoidTolls: true, avoidMotorway: true })).toBe("motorway,toll,ferry");
+  });
+
+  it("tutto a false: nessun exclude", async () => {
+    expect(await exclude({ avoidMotorway: false, avoidTolls: false, avoidFerries: false })).toBeNull();
+  });
+});
+
 describe("MapboxRoutingProvider — «Evita autostrada»", () => {
   it("con avoidMotorway aggiunge exclude=motorway", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(okBody));

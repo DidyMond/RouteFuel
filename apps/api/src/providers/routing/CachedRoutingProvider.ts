@@ -1,5 +1,5 @@
 import type { LonLat } from "@routefuel/shared";
-import type { RouteOptions, RouteResult, RoutingProvider } from "./RoutingProvider";
+import { routeExclusions, type RouteOptions, type RouteResult, type RoutingProvider } from "./RoutingProvider";
 
 export interface CachedRoutingProviderOptions {
   /** Durata di vita di una risposta in cache. Breve di proposito: nessuna persistenza dei risultati Mapbox. */
@@ -65,10 +65,11 @@ export class CachedRoutingProvider implements RoutingProvider {
 }
 
 /**
- * Coordinate arrotondate a 4 decimali (~11 m): richieste quasi identiche condividono la voce. Il percorso senza
- * autostrada è un'altra risposta: ha una chiave diversa.
+ * Coordinate arrotondate a 4 decimali (~11 m): richieste quasi identiche condividono la voce. Ogni insieme di
+ * esclusioni (autostrada, pedaggi, traghetti) è un'altra risposta: ha una chiave diversa.
  */
 function cacheKey(waypoints: readonly LonLat[], options?: RouteOptions): string {
   const points = waypoints.map((point) => `${point.lon.toFixed(4)},${point.lat.toFixed(4)}`).join("|");
-  return options?.avoidMotorway ? `${points}#no-motorway` : points;
+  const exclusions = routeExclusions(options);
+  return exclusions.length > 0 ? `${points}#exclude=${exclusions.join(",")}` : points;
 }

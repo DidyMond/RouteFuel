@@ -2,7 +2,7 @@ import type { Coordinate } from "@routefuel/core";
 import type { LonLat } from "@routefuel/shared";
 import { z } from "zod";
 import { ProviderError } from "../../errors";
-import type { RouteOptions, RouteResult, RoutingProvider } from "./RoutingProvider";
+import { routeExclusions, type RouteOptions, type RouteResult, type RoutingProvider } from "./RoutingProvider";
 
 const responseSchema = z.object({
   code: z.string(),
@@ -58,7 +58,9 @@ export class MapboxRoutingProvider implements RoutingProvider {
       steps: "false",
       access_token: this.token,
     });
-    if (options.avoidMotorway) params.set("exclude", "motorway");
+    // Directions accetta più valori separati da virgola (verificato: motorway, toll, ferry su mapbox/driving).
+    const exclusions = routeExclusions(options);
+    if (exclusions.length > 0) params.set("exclude", exclusions.join(","));
 
     let response: Response;
     try {

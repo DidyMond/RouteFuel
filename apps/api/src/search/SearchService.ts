@@ -490,7 +490,7 @@ function sortPrices(prices: readonly StationPriceEntry[]): StationPriceEntry[] {
 
 /** «Evita autostrada»: lo stesso tipo di percorso per il diretto e per le verifiche, così la deviazione è confrontabile. */
 function routeOptions(request: SearchRequest): RouteOptions {
-  return { avoidMotorway: request.avoidMotorway };
+  return { avoidMotorway: request.avoidMotorway, avoidTolls: request.avoidTolls, avoidFerries: request.avoidFerries };
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -207,6 +207,8 @@ describe.skipIf(!enabled)("integrazione PostgreSQL + PostGIS", () => {
         onlySelf: true,
         maxPriceAgeHours: 24 * 365,
         avoidMotorway: false,
+        avoidTolls: false,
+        avoidFerries: false,
       });
 
       expect(response.candidatesEvaluated).toBeGreaterThan(20);

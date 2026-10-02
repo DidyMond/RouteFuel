@@ -8,10 +8,23 @@ export interface RouteResult {
   geometry: Coordinate[];
 }
 
-/** Opzioni di una richiesta di percorso. */
+/** Opzioni di una richiesta di percorso: l'insieme delle esclusioni (Directions `exclude`). */
 export interface RouteOptions {
-  /** Percorso senza autostrada (Directions `exclude=motorway`). */
+  /** Percorso senza autostrada (`exclude=motorway`). */
   avoidMotorway?: boolean;
+  /** Percorso senza strade a pedaggio (`exclude=toll`). */
+  avoidTolls?: boolean;
+  /** Percorso senza traghetti (`exclude=ferry`). */
+  avoidFerries?: boolean;
+}
+
+/** Valori Directions `exclude` dell'insieme di opzioni, in ordine fisso (così la stessa combinazione ha sempre la stessa chiave). */
+export function routeExclusions(options?: RouteOptions): string[] {
+  const exclusions: string[] = [];
+  if (options?.avoidMotorway) exclusions.push("motorway");
+  if (options?.avoidTolls) exclusions.push("toll");
+  if (options?.avoidFerries) exclusions.push("ferry");
+  return exclusions;
 }
 
 /**

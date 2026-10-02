@@ -26,6 +26,8 @@ const request: SearchRequest = {
   onlySelf: true,
   maxPriceAgeHours: 72,
   avoidMotorway: false,
+  avoidTolls: false,
+  avoidFerries: false,
 };
 
 // Tre stazioni sul percorso (≤ 0.5 km) → livello 1 di P_avg: mediana = 1.82
@@ -925,6 +927,41 @@ describe("SearchService — «Evita autostrada» (avoidMotorway)", () => {
     expect(routing.receivedOptions.every((o) => o.avoidMotorway === true)).toBe(true);
     const refined = service.getRefinement(searchId)!.results.find((r) => r.station.id === 5)!;
     expect(refined.detourKm).toBeCloseTo(3, 1); // via − diretto, entrambi senza autostrada
+  });
+});
+
+describe("SearchService — insieme di esclusioni (autostrada, pedaggi, traghetti)", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+
+  it("pedaggi e traghetti arrivano a diretto, verifiche, percorso con sosta e dettaglio: tutti con lo stesso insieme", async () => {
+    const { service, routing } = buildService(stations());
+    const mock = routing as MockRoutingProvider;
+    const { searchId } = await service.search({ ...request, avoidTolls: true, avoidFerries: true });
+    await service.waitForRefinement(searchId);
+    await service.getStationRoute(searchId, 5);
+    await service.getStationDetail(searchId, 5);
+    expect(mock.callOptions.length).toBeGreaterThan(3);
+    for (const options of mock.callOptions) expect(options).toEqual({ avoidMotorway: false, avoidTolls: true, avoidFerries: true });
+  });
+
+  it("la baseline della deviazione è sempre il diretto con lo stesso insieme (ogni combinazione, un'unica chiave per ricerca)", async () => {
+    for (const set of [{ avoidTolls: true }, { avoidMotorway: true, avoidTolls: true }, { avoidFerries: true }]) {
+      const { service, routing } = buildService(stations());
+      const mock = routing as MockRoutingProvider;
+      const { searchId } = await service.search({ ...request, ...set });
+      await service.waitForRefinement(searchId);
+      const distinct = new Set(mock.callOptions.map((o) => JSON.stringify(o)));
+      expect(distinct.size, JSON.stringify(set)).toBe(1); // diretto e vie: stesso insieme
+      expect(mock.calls.some((c) => c.length === 2)).toBe(true);
+      expect(mock.calls.some((c) => c.length === 3)).toBe(true);
+    }
+  });
+
+  it("senza esclusioni nessuna chiamata ne porta una", async () => {
+    const { service, routing } = buildService(stations());
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    for (const options of (routing as MockRoutingProvider).callOptions) expect(options).toEqual({ avoidMotorway: false, avoidTolls: false, avoidFerries: false });
   });
 });
 
