@@ -13,7 +13,8 @@ interface AccordionProps {
 
 /**
  * Sezione a fisarmonica (DESIGN.md — card `rounded-lg`, `shadow-sm`). Il contenuto resta montato anche da chiuso
- * (solo nascosto): i campi non perdono il valore e i controlli di validità restano attivi.
+ * (solo nascosto): i campi non perdono il valore e i controlli di validità restano attivi. `flex` solo da aperta:
+ * una classe `display` batterebbe l'attributo `hidden` e la sezione chiusa resterebbe visibile.
  */
 export function Accordion({ id, title, icon, open, onToggle, children }: AccordionProps) {
   const buttonId = `acc-${id}-button`;
@@ -34,7 +35,7 @@ export function Accordion({ id, title, icon, open, onToggle, children }: Accordi
           <ChevronDownIcon className={`text-on-surface-variant transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </h2>
-      <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!open} className="px-space-xl pb-space-xl flex flex-col gap-space-lg">
+      <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!open} className={`px-space-xl pb-space-xl flex-col gap-space-lg ${open ? "flex" : ""}`}>
         {children}
       </div>
     </section>

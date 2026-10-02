@@ -59,6 +59,22 @@ describe("SettingsScreen — struttura", () => {
     expect(document.getElementById("acc-vehicle-panel")).toBeInTheDocument(); // resta montato: i campi non perdono il valore
   });
 
+  it("una sezione chiusa non ha classi display: l'attributo hidden deve poter nasconderla (jsdom non carica il CSS, qui si controlla la causa)", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    const panel = (id: string) => document.getElementById(`acc-${id}-panel`)!;
+    expect(panel("algorithm")).toHaveAttribute("hidden");
+    expect(panel("algorithm").classList.contains("flex")).toBe(false);
+    expect(panel("vehicle")).not.toHaveAttribute("hidden");
+    expect(panel("vehicle").classList.contains("flex")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Algoritmo & Filtri" }));
+    expect(panel("algorithm")).not.toHaveAttribute("hidden");
+    expect(panel("algorithm").classList.contains("flex")).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Algoritmo & Filtri" }));
+    expect(panel("algorithm").classList.contains("flex")).toBe(false);
+  });
+
   it("titolo, kicker e azioni come da mockup 5", () => {
     renderScreen();
     expect(screen.getByRole("heading", { level: 1, name: "Impostazioni Veicolo & Risparmio" })).toBeInTheDocument();
