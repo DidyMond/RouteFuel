@@ -31,8 +31,18 @@ type SuccessState = Extract<SearchState, { status: "success" }>;
 
 // Tap su scheda o «Info»: la schermata chiede di aprire il dettaglio (la navigazione è di App, qui si osserva soltanto).
 const openStation = vi.fn();
-function ResultsScreen({ state }: { state: SuccessState }) {
-  return <RealResultsScreen state={state} onOpenStation={openStation} />;
+const applyRouteOptions = vi.fn();
+const NO_EXCLUSIONS = { avoidMotorway: false, avoidTolls: false, avoidFerries: false };
+function ResultsScreen({
+  state,
+  routeDefaults = NO_EXCLUSIONS,
+  searching,
+}: {
+  state: SuccessState;
+  routeDefaults?: typeof NO_EXCLUSIONS;
+  searching?: boolean;
+}) {
+  return <RealResultsScreen state={state} onOpenStation={openStation} routeDefaults={routeDefaults} onApplyRouteOptions={applyRouteOptions} searching={searching} />;
 }
 
 function makeState(overrides: Partial<SuccessState> = {}): SuccessState {
@@ -56,6 +66,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchSpy);
   mapProps.current = null;
   openStation.mockReset();
+  applyRouteOptions.mockReset();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -330,30 +341,173 @@ describe("ResultsScreen — contrasto del testo piccolo (WCAG AA, regola ≤14px
   });
 });
 
-describe("ResultsScreen — «Evita autostrada» e prezzo di riferimento manuale", () => {
-  it("senza «Evita autostrada» non c'è alcun badge", () => {
+describe("ResultsScreen — «Opzioni percorso»", () => {
+  const chip = () => screen.getByTestId("route-options-chip");
+  const withOptions = (patch: Partial<typeof REQUEST>) => makeState({ request: { ...REQUEST, ...patch } });
+
+  it("senza esclusioni è un chip-pulsante «Opzioni percorso» (nessuno stato attivo) e non c'è più il banner", () => {
     render(<ResultsScreen state={makeState()} />);
+    expect(chip()).toHaveTextContent(/^Opzioni percorso$/);
+    expect(chip()).toHaveAttribute("aria-haspopup", "dialog");
     expect(screen.queryByTestId("avoid-motorway-badge")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Evita autostrada attivo/)).not.toBeInTheDocument();
   });
 
-  it("con «Evita autostrada» attivo un badge visibile dice qual è la baseline delle deviazioni", () => {
-    render(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidMotorway: true } })} />);
-    const badge = screen.getByTestId("avoid-motorway-badge");
-    expect(badge).toBeVisible();
-    expect(badge).toHaveTextContent("Evita autostrada attivo");
-    expect(badge).toHaveTextContent("percorso senza autostrada");
-    expect(badge).toHaveAttribute("title", expect.stringContaining("senza autostrada"));
-    expect(badge).toHaveClass("rounded-full", "text-on-secondary-fixed-variant");
+  it("mostra lo stato attivo nel chip: «Opzioni percorso · senza autostrada»", () => {
+    render(<ResultsScreen state={withOptions({ avoidMotorway: true })} />);
+    expect(chip()).toHaveTextContent("Opzioni percorso · senza autostrada");
+    expect(chip()).toBeVisible();
+    expect(chip()).toHaveClass("rounded-full", "text-on-secondary-fixed-variant");
+    expect(chip()).toHaveAttribute("title", expect.stringContaining("stesse opzioni"));
   });
 
-  it("il badge sta nel foglio dei risultati, sopra le schede", () => {
-    render(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidMotorway: true } })} />);
-    const sheet = screen.getByTestId("sheet-scroll");
-    expect(sheet).toContainElement(screen.getByTestId("avoid-motorway-badge"));
-    const badge = screen.getByTestId("avoid-motorway-badge");
+  it("elenca più esclusioni: autostrada e pedaggi / autostrada, pedaggi e traghetti / solo traghetti", () => {
+    const { rerender } = render(<ResultsScreen state={withOptions({ avoidMotorway: true, avoidTolls: true })} />);
+    expect(chip()).toHaveTextContent("Opzioni percorso · senza autostrada e pedaggi");
+    rerender(<ResultsScreen state={withOptions({ avoidMotorway: true, avoidTolls: true, avoidFerries: true })} />);
+    expect(chip()).toHaveTextContent("Opzioni percorso · senza autostrada, pedaggi e traghetti");
+    rerender(<ResultsScreen state={withOptions({ avoidFerries: true })} />);
+    expect(chip()).toHaveTextContent("Opzioni percorso · senza traghetti");
+  });
+
+  it("il chip sta nel foglio dei risultati, sopra le schede", () => {
+    render(<ResultsScreen state={withOptions({ avoidMotorway: true })} />);
+    expect(screen.getByTestId("sheet-scroll")).toContainElement(chip());
     const firstCard = screen.getAllByTestId("station-card")[0]!;
-    expect(badge.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(chip().compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it("il pulsante apre un foglio con tre toggle precompilati dalla ricerca corrente", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={withOptions({ avoidTolls: true })} />);
+    expect(screen.queryByRole("dialog", { name: "Opzioni percorso" })).not.toBeInTheDocument();
+    await user.click(chip());
+
+    const dialog = screen.getByRole("dialog", { name: "Opzioni percorso" });
+    expect(dialog).toHaveClass("rounded-t-3xl");
+    expect(within(dialog).getAllByRole("switch").map((s) => [s.getAttribute("aria-checked"), s.getAttribute("aria-labelledby") && document.getElementById(s.getAttribute("aria-labelledby")!)!.textContent])).toEqual([
+      ["false", "Evita autostrade"],
+      ["true", "Evita pedaggi"],
+      ["false", "Evita traghetti"],
+    ]);
+  });
+
+  it("«Applica» rilancia la ricerca con le nuove esclusioni e chiude il foglio; la richiesta (A/B) la compone il chiamante", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={withOptions({ avoidMotorway: true })} />);
+    await user.click(chip());
+    await user.click(screen.getByRole("switch", { name: "Evita pedaggi" }));
+    await user.click(screen.getByRole("switch", { name: "Evita traghetti" }));
+    await user.click(screen.getByRole("switch", { name: "Evita autostrade" })); // lo spegne
+    await user.click(screen.getByRole("button", { name: "Applica" }));
+
+    expect(applyRouteOptions).toHaveBeenCalledTimes(1);
+    expect(applyRouteOptions).toHaveBeenCalledWith({ avoidMotorway: false, avoidTolls: true, avoidFerries: true });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("«Applica» è disattivato finché non cambia nulla: niente ricerche inutili", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={withOptions({ avoidMotorway: true })} />);
+    await user.click(chip());
+    expect(screen.getByRole("button", { name: "Applica" })).toBeDisabled();
+    await user.click(screen.getByRole("switch", { name: "Evita traghetti" }));
+    expect(screen.getByRole("button", { name: "Applica" })).toBeEnabled();
+    await user.click(screen.getByRole("switch", { name: "Evita traghetti" }));
+    expect(screen.getByRole("button", { name: "Applica" })).toBeDisabled();
+  });
+
+  it("«Reimposta» riporta i toggle ai default delle Impostazioni (e non rilancia da sola)", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={withOptions({ avoidMotorway: false, avoidTolls: true })} routeDefaults={{ avoidMotorway: true, avoidTolls: false, avoidFerries: true }} />);
+    await user.click(chip());
+    await user.click(screen.getByRole("button", { name: "Reimposta" }));
+
+    expect(screen.getByRole("switch", { name: "Evita autostrade" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "Evita pedaggi" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "Evita traghetti" })).toHaveAttribute("aria-checked", "true");
+    expect(applyRouteOptions).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Applica" }));
+    expect(applyRouteOptions).toHaveBeenCalledWith({ avoidMotorway: true, avoidTolls: false, avoidFerries: true });
+  });
+
+  it("chiudere senza applicare (Chiudi o Escape) non cambia nulla", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={withOptions({})} />);
+    await user.click(chip());
+    await user.click(screen.getByRole("switch", { name: "Evita pedaggi" }));
+    await user.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(chip());
+    expect(screen.getByRole("switch", { name: "Evita pedaggi" })).toHaveAttribute("aria-checked", "false"); // ripartono dalla ricerca
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(applyRouteOptions).not.toHaveBeenCalled();
+  });
+
+  it("durante il ricalcolo i risultati restano, con un avviso, e il chip non si può riaprire", () => {
+    render(<ResultsScreen state={withOptions({ avoidMotorway: true })} searching />);
+    expect(screen.getByText("Ricalcolo con le nuove opzioni…")).toBeInTheDocument();
+    expect(chip()).toBeDisabled();
+    expect(screen.getAllByTestId("station-card").length).toBeGreaterThan(0);
+  });
+});
+
+describe("ResultsScreen — pill «Autostrada» e «Evita autostrada»", () => {
+  const pill = () => screen.getByRole("button", { name: "Autostrada" });
+
+  it("con evita-autostrade la pill è disabilitata, grigia, con il tooltip «Non disponibile con Evita autostrada»", () => {
+    render(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidMotorway: true } })} />);
+    expect(pill()).toBeDisabled();
+    expect(pill()).toHaveAttribute("aria-pressed", "false");
+    expect(pill()).toHaveAttribute("title", "Non disponibile con Evita autostrada");
+    expect(pill()).toHaveClass("bg-surface-container-low", "opacity-50");
+    expect(pill()).not.toHaveClass("bg-primary");
+  });
+
+  it("senza evita-autostrade la pill è attiva e senza tooltip", () => {
+    render(<ResultsScreen state={makeState()} />);
+    expect(pill()).toBeEnabled();
+    expect(pill()).not.toHaveAttribute("title");
+  });
+
+  it("se la pill è attiva e una nuova ricerca attiva evita-autostrade, si disattiva da sola (e l'elenco non è più filtrato)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<ResultsScreen state={makeState()} />);
+    await user.click(pill());
+    expect(pill()).toHaveAttribute("aria-pressed", "true");
+    expect(cardIds()).toEqual([1]);
+
+    // Nuova ricerca (nuovo searchId) con evita-autostrade: tutti i risultati senza il filtro Tipo Impianto.
+    const next = makeResponse({ searchId: "second-search" });
+    rerender(<ResultsScreen state={makeState({ response: next, results: next.results, request: { ...REQUEST, avoidMotorway: true } })} />);
+    expect(pill()).toBeDisabled();
+    expect(pill()).toHaveAttribute("aria-pressed", "false");
+    expect(cardIds()).toEqual([1, 2, 3]);
+  });
+
+  it("anche se evita-autostrade arriva senza cambiare ricerca, il filtro attivo decade", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<ResultsScreen state={makeState()} />);
+    await user.click(pill());
+    rerender(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidMotorway: true } })} />);
+    expect(pill()).toHaveAttribute("aria-pressed", "false");
+    expect(cardIds()).toEqual([1, 2, 3]);
+  });
+
+  it("NESSUN auto-disable con evita-pedaggi (o traghetti): il filtro Tipo Impianto non dipende dal tracciato", async () => {
+    const user = userEvent.setup();
+    render(<ResultsScreen state={makeState({ request: { ...REQUEST, avoidTolls: true, avoidFerries: true } })} />);
+    expect(pill()).toBeEnabled();
+    await user.click(pill());
+    expect(pill()).toHaveAttribute("aria-pressed", "true");
+    expect(cardIds()).toEqual([1]);
+  });
+});
+
+describe("ResultsScreen — prezzo di riferimento manuale", () => {
 
   it("riferimento impostato a mano: lo dichiara invece di parlare di mediane", () => {
     const response = makeResponse({ referencePrice: { value: 2.3, level: "manual", sampleSize: 0 } });

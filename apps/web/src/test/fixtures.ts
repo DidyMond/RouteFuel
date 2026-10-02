@@ -49,6 +49,8 @@ export const REQUEST: SearchRequest = {
   onlySelf: false,
   maxPriceAgeHours: 72,
   avoidMotorway: false,
+  avoidTolls: false,
+  avoidFerries: false,
 };
 
 /** Tre stazioni con ordinamenti diversi per risparmio, deviazione e distanza dal tracciato. */

@@ -2,11 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadSettings, resetSettingsMemory, SETTINGS_KEY } from "./lib/settings";
+import { FACTORY_SETTINGS, loadSettings, resetSettingsMemory, saveSettings, SETTINGS_KEY } from "./lib/settings";
 
 // Ricerca simulata: lo stato di useSearch è deciso dal singolo test.
 const searchState = vi.hoisted(() => ({ current: { status: "idle" } as unknown }));
-vi.mock("./hooks/useSearch", () => ({ useSearch: () => ({ state: searchState.current, search: vi.fn() }) }));
+const searchSpy = vi.hoisted(() => vi.fn());
+vi.mock("./hooks/useSearch", () => ({ useSearch: () => ({ state: searchState.current, search: searchSpy }) }));
 vi.mock("./components/results/MapView", () => ({ MapView: () => <div data-testid="map-stub" /> }));
 
 import App from "./App";
@@ -35,6 +36,7 @@ beforeEach(() => {
   localStorage.clear();
   resetSettingsMemory();
   searchState.current = { status: "idle" };
+  searchSpy.mockReset();
 });
 
 describe("App — barra inferiore a 3 tab e rotta /settings", () => {
@@ -66,6 +68,7 @@ describe("App — barra inferiore a 3 tab e rotta /settings", () => {
     const user = userEvent.setup();
     renderApp("/settings");
     // La Home resta montata (nascosta) sotto le Impostazioni: si agisce dentro la sezione del profilo veicolo.
+    await user.click(screen.getByRole("button", { name: "Profilo Veicolo" })); // le sezioni sono chiuse al caricamento
     const profile = screen.getByRole("region", { name: "Profilo Veicolo" });
     await user.click(within(profile).getByRole("radio", { name: "Diesel" }));
     const stepper = screen.getByRole("group", { name: "Capacità serbatoio" });
@@ -76,6 +79,53 @@ describe("App — barra inferiore a 3 tab e rotta /settings", () => {
     await user.click(screen.getByRole("link", { name: "Cerca" }));
     expect(screen.getByRole("radio", { name: "Diesel", checked: true })).toBeInTheDocument();
     expect(screen.getByText("50 L")).toBeInTheDocument();
+  });
+});
+
+describe("App — «Opzioni percorso» nei Risultati rilancia la ricerca", () => {
+  const options = () => screen.getByTestId("route-options-chip");
+
+  it("«Applica» rilancia POST /search con la stessa richiesta (stesso A/B e parametri) e le nuove esclusioni, con le stesse etichette", async () => {
+    successWith({ value: 2.139, level: "on_route", sampleSize: 40 });
+    const user = userEvent.setup();
+    renderApp("/results");
+    await user.click(options());
+    await user.click(screen.getByRole("switch", { name: "Evita autostrade" }));
+    await user.click(screen.getByRole("switch", { name: "Evita pedaggi" }));
+    await user.click(screen.getByRole("button", { name: "Applica" }));
+
+    expect(searchSpy).toHaveBeenCalledTimes(1);
+    const [request, labels] = searchSpy.mock.calls[0]!;
+    expect(request).toEqual({ ...REQUEST, avoidMotorway: true, avoidTolls: true, avoidFerries: false });
+    expect(labels).toEqual({ origin: "Milano", destination: "Bologna" });
+  });
+
+  it("«Reimposta» usa i default salvati nelle Impostazioni (pedaggi e traghetti compresi)", async () => {
+    saveSettings({ ...FACTORY_SETTINGS, avoidMotorway: true, avoidFerries: true });
+    successWith({ value: 2.139, level: "on_route", sampleSize: 40 });
+    const user = userEvent.setup();
+    renderApp("/results");
+    await user.click(options());
+    await user.click(screen.getByRole("button", { name: "Reimposta" }));
+    expect(screen.getByRole("switch", { name: "Evita autostrade" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "Evita pedaggi" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "Evita traghetti" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("mentre la nuova ricerca è in corso i risultati precedenti restano visibili (nessun rimbalzo alla Home)", () => {
+    successWith({ value: 2.139, level: "on_route", sampleSize: 40 });
+    const view = renderApp("/results");
+    expect(screen.getAllByTestId("station-card").length).toBeGreaterThan(0);
+
+    searchState.current = { status: "loading" };
+    view.rerender(
+      <MemoryRouter initialEntries={["/results"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByTestId("station-card").length).toBeGreaterThan(0);
+    expect(screen.getByText("Ricalcolo con le nuove opzioni…")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Risultati" })).not.toHaveAttribute("aria-disabled", "true");
   });
 });
 
@@ -107,6 +157,7 @@ describe("App — ultimo prezzo di riferimento automatico (per pre-compilare «M
     const user = userEvent.setup();
     renderApp("/results");
     await user.click(screen.getByRole("link", { name: "Impostazioni" }));
-    expect(screen.getByTestId("cost-per-km")).toHaveTextContent("~0,120 €/km"); // 1,80 ÷ 15 km/L
+    await user.click(screen.getByRole("button", { name: "Consumi e Carburante" }));
+    expect(screen.getByTestId("cost-per-km")).toHaveTextContent("~€0,12/km"); // 1,80 ÷ 15 km/L
   });
 });

@@ -1,5 +1,5 @@
 import type { StationResult } from "@routefuel/shared";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
@@ -10,6 +10,7 @@ import { SettingsScreen } from "./components/settings/SettingsScreen";
 import { StationDetailScreen } from "./components/station/StationDetailScreen";
 import { useSearch } from "./hooks/useSearch";
 import { SettingsProvider, useSettings } from "./hooks/useSettings";
+import type { RouteExclusions } from "./lib/routeOptions";
 
 export default function App() {
   return (
@@ -21,7 +22,7 @@ export default function App() {
 
 function AppShell() {
   const { state, search } = useSearch();
-  const { rememberAutomaticReference } = useSettings();
+  const { settings, rememberAutomaticReference } = useSettings();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -48,6 +49,24 @@ function AppShell() {
     if (searching) void import("./components/results/MapCanvas");
   }, [searching]);
 
+  // Rilanciando la ricerca dai Risultati («Opzioni percorso» → Applica) si resta sui risultati precedenti finché
+  // arrivano i nuovi: lo stato passa da «loading» ma la schermata non sparisce.
+  const lastSuccess = useRef<Extract<typeof state, { status: "success" }> | null>(null);
+  if (state.status === "success") lastSuccess.current = state;
+  const resultsState = state.status === "success" ? state : state.status === "loading" ? lastSuccess.current : null;
+
+  const routeDefaults = useMemo<RouteExclusions>(
+    () => ({ avoidMotorway: settings.avoidMotorway, avoidTolls: settings.avoidTolls, avoidFerries: settings.avoidFerries }),
+    [settings.avoidMotorway, settings.avoidTolls, settings.avoidFerries],
+  );
+  const applyRouteOptions = useCallback(
+    (exclusions: RouteExclusions) => {
+      if (state.status !== "success") return;
+      void search({ ...state.request, ...exclusions }, state.labels);
+    },
+    [state, search],
+  );
+
   const onHome = pathname === "/";
   const onStation = pathname.startsWith("/station/");
   const searchId = state.status === "success" ? state.response.searchId : null;
@@ -66,21 +85,27 @@ function AppShell() {
 
       {/* Anche i Risultati restano montati (nascosti) sul dettaglio stazione: tornando indietro ordinamento, filtri,
           selezione e posizione della mappa sono quelli di prima. */}
-      {state.status === "success" && (pathname === "/results" || onStation) && (
+      {resultsState && (pathname === "/results" || onStation) && (
         <div className={onStation ? "hidden" : ""}>
-          <ResultsScreen state={state} onOpenStation={openStation} />
+          <ResultsScreen
+            state={resultsState}
+            onOpenStation={openStation}
+            routeDefaults={routeDefaults}
+            onApplyRouteOptions={applyRouteOptions}
+            searching={state.status === "loading"}
+          />
         </div>
       )}
 
       <Routes>
         <Route path="/" element={null} />
-        <Route path="/results" element={state.status === "success" ? null : <Navigate to="/" replace />} />
+        <Route path="/results" element={resultsState ? null : <Navigate to="/" replace />} />
         <Route path="/station/:searchId/:stationId" element={<StationDetailScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {!onStation && <BottomNav hasResults={state.status === "success"} />}
+      {!onStation && <BottomNav hasResults={resultsState !== null} />}
     </div>
   );
 }

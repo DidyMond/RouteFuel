@@ -102,13 +102,59 @@ describe("SearchForm — precompilazione dalle Impostazioni", () => {
   });
 });
 
+describe("SearchForm — switch «Solo Self» ed «Evita autostrada» per ricerca", () => {
+  const onlySelf = () => screen.getByRole("switch", { name: "Solo Self" });
+  const avoid = () => screen.getByRole("switch", { name: "Evita autostrada" });
+
+  it("sono accanto: «Solo Self» seguito da «Evita autostrada», e di fabbrica Solo Self è ON ed Evita autostrada OFF", () => {
+    renderForm();
+    expect(onlySelf()).toHaveAttribute("aria-checked", "true");
+    expect(avoid()).toHaveAttribute("aria-checked", "false");
+    expect(onlySelf().compareDocumentPosition(avoid()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sono precompilati dai default delle Impostazioni (Solo Self OFF, Evita autostrada ON)", () => {
+    renderForm({ settings: settings({ onlySelf: false, avoidMotorway: true }) });
+    expect(onlySelf()).toHaveAttribute("aria-checked", "false");
+    expect(avoid()).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("si cambiano per ricerca e vengono inviati con la richiesta, senza toccare le Impostazioni salvate", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm();
+    await user.click(onlySelf());
+    await user.click(avoid());
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ onlySelf: false, avoidMotorway: true });
+    expect(localStorage.getItem("routefuel.settings.v1")).toBeNull(); // la scelta per-ricerca non è una preferenza
+  });
+
+  it("la richiesta porta i default di pedaggi e traghetti dalle Impostazioni (non hanno switch nel form)", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ avoidTolls: true, avoidFerries: true }) });
+    expect(screen.queryByRole("switch", { name: /pedaggi|traghetti/i })).not.toBeInTheDocument();
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ avoidMotorway: false, avoidTolls: true, avoidFerries: true });
+  });
+
+  it("quando le Impostazioni cambiano, entrambi gli switch ripartono dai nuovi default", async () => {
+    const user = userEvent.setup();
+    renderForm({ next: settings({ onlySelf: false, avoidMotorway: true }) });
+    await user.click(onlySelf()); // la scelta per-ricerca (ora OFF)
+    await user.click(onlySelf()); // di nuovo ON
+    await user.click(screen.getByRole("button", { name: "applica impostazioni" }));
+    expect(onlySelf()).toHaveAttribute("aria-checked", "false");
+    expect(avoid()).toHaveAttribute("aria-checked", "true");
+  });
+});
+
 describe("SearchForm — richiesta con i parametri delle Impostazioni", () => {
-  it("di fabbrica: V_time 0,15, soglia 72 h, autostrada ammessa, nessun prezzo di riferimento manuale", async () => {
+  it("di fabbrica: V_time 0,15, soglia 72 h, nessuna esclusione, Solo Self, nessun prezzo di riferimento manuale", async () => {
     const user = userEvent.setup();
     const onSubmit = renderForm();
     await submit(user);
     const request = onSubmit.mock.calls[0]![0];
-    expect(request).toMatchObject({ fuelType: "benzina", liters: 45, consumptionKmPerLiter: 15, valueOfTimePerMinute: 0.15, maxPriceAgeHours: 72, avoidMotorway: false });
+    expect(request).toMatchObject({ fuelType: "benzina", liters: 45, consumptionKmPerLiter: 15, valueOfTimePerMinute: 0.15, maxPriceAgeHours: 72, onlySelf: true, avoidMotorway: false, avoidTolls: false, avoidFerries: false });
     expect(request).not.toHaveProperty("referencePriceOverride");
   });
 

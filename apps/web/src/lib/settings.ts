@@ -35,7 +35,11 @@ export interface Settings {
   };
   /** Consumo medio misto, km/L. */
   consumptionKmPerLiter: number;
-  /** Valore del tempo, €/minuto (V_time). */
+  /**
+   * Valore del tempo (V_time), sempre in €/minuto: l'interfaccia lo presenta in €/ora con preset nominati
+   * («Solo denaro» 0, «Tranquillo» 6, «Bilanciato» 9, «Ho fretta» 15 €/h) o uno slider, ma qui e nella richiesta
+   * è €/min (€/h ÷ 60).
+   */
   valueOfTimePerMinute: number;
   referenceMode: ReferenceMode;
   /** Prezzi di riferimento manuali per carburante; contano solo con `referenceMode = "manual"`. */
@@ -45,13 +49,45 @@ export interface Settings {
    * cache, serve a precompilare i campi quando si passa a «Manuale». Il ripristino dei valori di fabbrica la conserva.
    */
   lastAutomaticReference: FuelPrices;
-  /** «Evita autostrada»: percorsi senza autostrada (diretto e verifiche). */
+  /** «Evita autostrada»: percorsi senza autostrada (diretto e verifiche). Default globale: precompila lo switch della Home. */
   avoidMotorway: boolean;
+  /** «Evita pedaggi» (`exclude=toll`): default dei toggle delle Opzioni percorso; non entra in S_net. */
+  avoidTolls: boolean;
+  /** «Evita traghetti» (`exclude=ferry`): default dei toggle delle Opzioni percorso. */
+  avoidFerries: boolean;
+  /** «Cerca solo stazioni Self per impostazione predefinita»: precompila lo switch «Solo Self» della Home. */
+  onlySelf: boolean;
   /** Prezzi comunicati da più di N ore sono esclusi. */
   maxPriceAgeHours: number;
 }
 
-export const V_TIME_RANGE = { min: 0.05, max: 1 } as const;
+/** Validazione di V_time, €/min (il «Solo denaro» è 0). */
+export const V_TIME_RANGE = { min: 0, max: 1 } as const;
+/** Slider di «Personalizzato», €/h. */
+export const V_TIME_CUSTOM_RANGE = { min: 3, max: 60, step: 1 } as const;
+
+export type VTimePresetId = "money" | "calm" | "balanced" | "rush";
+
+/** Preset del valore del tempo, in €/ora (il valore salvato è €/ora ÷ 60). */
+export const V_TIME_PRESETS: ReadonlyArray<{ id: VTimePresetId; label: string; perHour: number }> = [
+  { id: "money", label: "Solo denaro", perHour: 0 },
+  { id: "calm", label: "Tranquillo", perHour: 6 },
+  { id: "balanced", label: "Bilanciato", perHour: 9 },
+  { id: "rush", label: "Ho fretta", perHour: 15 },
+];
+
+/** €/ora → €/minuto, arrotondato a 4 decimali (7 €/h → 0,1167 €/min). */
+export const perMinuteFromHour = (perHour: number): number => Math.round((perHour / 60) * 10_000) / 10_000;
+/** €/minuto → €/ora, a 2 decimali. */
+export const perHourFromMinute = (perMinute: number): number => Math.round(perMinute * 60 * 100) / 100;
+
+/** Il preset che corrisponde a un V_time (€/min), se ce n'è uno. */
+export function vTimePresetFor(perMinute: number): (typeof V_TIME_PRESETS)[number] | undefined {
+  return V_TIME_PRESETS.find((preset) => Math.abs(perMinute * 60 - preset.perHour) < 0.005);
+}
+
+/** Slider del consumo (km/L). */
+export const CONSUMPTION_SLIDER = { min: 3, max: 40, step: 0.5, default: 15 } as const;
 export const TANK_RANGE = LITERS_RANGE;
 export const FRESHNESS_RANGE = { min: 1, max: 720 } as const;
 export const REFERENCE_PRICE_RANGE = { min: 0.5, max: 4 } as const;
@@ -69,6 +105,9 @@ export const FACTORY_SETTINGS: Settings = {
   manualReference: {},
   lastAutomaticReference: {},
   avoidMotorway: false,
+  avoidTolls: false,
+  avoidFerries: false,
+  onlySelf: SEARCH_DEFAULTS.onlySelf,
   maxPriceAgeHours: SEARCH_DEFAULTS.maxPriceAgeHours,
 };
 
@@ -107,6 +146,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     manualReference: sanitizePrices(raw.manualReference),
     lastAutomaticReference: sanitizePrices(raw.lastAutomaticReference),
     avoidMotorway: raw.avoidMotorway === true,
+    avoidTolls: raw.avoidTolls === true,
+    avoidFerries: raw.avoidFerries === true,
+    // Default ON: solo un `false` esplicito lo spegne (un salvataggio precedente senza il campo resta ON).
+    onlySelf: raw.onlySelf === false ? false : f.onlySelf,
     maxPriceAgeHours:
       inRange(raw.maxPriceAgeHours, FRESHNESS_RANGE.min, FRESHNESS_RANGE.max) && Number.isInteger(raw.maxPriceAgeHours)
         ? raw.maxPriceAgeHours
@@ -183,6 +226,6 @@ export function parseDecimal(text: string): number | null {
 /** Due impostazioni coincidono per le preferenze (la cache dell'ultimo prezzo automatico non conta; l'ordine delle chiavi neppure). */
 export function samePreferences(a: Settings, b: Settings): boolean {
   const key = (s: Settings) =>
-    JSON.stringify([s.vehicle, s.consumptionKmPerLiter, s.valueOfTimePerMinute, s.referenceMode, FUELS.map((f) => s.manualReference[f] ?? null), s.avoidMotorway, s.maxPriceAgeHours]);
+    JSON.stringify([s.vehicle, s.consumptionKmPerLiter, s.valueOfTimePerMinute, s.referenceMode, FUELS.map((f) => s.manualReference[f] ?? null), s.avoidMotorway, s.avoidTolls, s.avoidFerries, s.onlySelf, s.maxPriceAgeHours]);
   return key(a) === key(b);
 }

@@ -4,6 +4,8 @@ import {
   FACTORY_SETTINGS,
   loadSettings,
   parseDecimal,
+  perHourFromMinute,
+  perMinuteFromHour,
   prefillManualReference,
   referenceOverrideFor,
   resetSettingsMemory,
@@ -12,6 +14,9 @@ import {
   saveSettings,
   SETTINGS_KEY,
   SETTINGS_VERSION,
+  V_TIME_CUSTOM_RANGE,
+  V_TIME_PRESETS,
+  vTimePresetFor,
   type Settings,
 } from "./settings";
 
@@ -29,17 +34,23 @@ const custom = (): Settings => ({
   manualReference: { benzina: 1.9, diesel: 1.8 },
   lastAutomaticReference: { benzina: 1.85 },
   avoidMotorway: true,
+  avoidTolls: true,
+  avoidFerries: false,
+  onlySelf: false,
   maxPriceAgeHours: 48,
 });
 
 describe("valori di fabbrica", () => {
-  it("coincidono con i default confermati: 45 L, 15 km/L, 0,15 €/min, 72 h, Benzina, Automatico, autostrada ammessa", () => {
+  it("coincidono con i default confermati: 45 L, 15 km/L, 0,15 €/min («Bilanciato»), 72 h, Benzina, Automatico, nessuna esclusione, Solo Self ON", () => {
     expect(FACTORY_SETTINGS.vehicle).toEqual({ bodyType: "berlina", modelName: "", tankLiters: 45, defaultFuel: "benzina" });
     expect(FACTORY_SETTINGS.consumptionKmPerLiter).toBe(15);
     expect(FACTORY_SETTINGS.valueOfTimePerMinute).toBe(0.15);
     expect(FACTORY_SETTINGS.referenceMode).toBe("auto");
     expect(FACTORY_SETTINGS.manualReference).toEqual({});
     expect(FACTORY_SETTINGS.avoidMotorway).toBe(false);
+    expect(FACTORY_SETTINGS.avoidTolls).toBe(false);
+    expect(FACTORY_SETTINGS.avoidFerries).toBe(false);
+    expect(FACTORY_SETTINGS.onlySelf).toBe(true);
     expect(FACTORY_SETTINGS.maxPriceAgeHours).toBe(72);
   });
 
@@ -99,11 +110,14 @@ describe("sanitizeSettings — ogni campo non valido torna al valore di fabbrica
     const dirty = {
       vehicle: { bodyType: "astronave", modelName: 12, tankLiters: 999, defaultFuel: "idrogeno" },
       consumptionKmPerLiter: 100,
-      valueOfTimePerMinute: 0.01,
+      valueOfTimePerMinute: 1.5,
       referenceMode: "boh",
       manualReference: { benzina: 0.1, diesel: 99, gpl: "2", metano: 1.2 },
       lastAutomaticReference: { benzina: 1.7 },
       avoidMotorway: "sì",
+      avoidTolls: 1,
+      avoidFerries: "true",
+      onlySelf: "no",
       maxPriceAgeHours: 3.5,
     };
     const clean = sanitizeSettings(dirty);
@@ -114,18 +128,75 @@ describe("sanitizeSettings — ogni campo non valido torna al valore di fabbrica
     expect(clean.manualReference).toEqual({ metano: 1.2 }); // solo il valore nell'intervallo 0,5–4
     expect(clean.lastAutomaticReference).toEqual({ benzina: 1.7 });
     expect(clean.avoidMotorway).toBe(false);
+    expect(clean.avoidTolls).toBe(false);
+    expect(clean.avoidFerries).toBe(false);
+    expect(clean.onlySelf).toBe(true); // solo un false esplicito lo spegne
     expect(clean.maxPriceAgeHours).toBe(72);
   });
 
-  it("V_time: 0,05 e 1,00 sono ammessi, 0,049 e 1,01 no", () => {
+  it("«Solo Self» predefinito: solo `false` lo spegne; un salvataggio senza il campo resta ON", () => {
+    expect(sanitizeSettings({ onlySelf: false }).onlySelf).toBe(false);
+    expect(sanitizeSettings({ onlySelf: true }).onlySelf).toBe(true);
+    expect(sanitizeSettings({}).onlySelf).toBe(true);
+    expect(sanitizeSettings({ avoidTolls: true, avoidFerries: true })).toMatchObject({ avoidTolls: true, avoidFerries: true });
+  });
+
+  it("V_time: da 0,00 («Solo denaro») a 1,00 €/min sono ammessi, -0,01 e 1,01 no", () => {
+    expect(sanitizeSettings({ valueOfTimePerMinute: 0 }).valueOfTimePerMinute).toBe(0);
     expect(sanitizeSettings({ valueOfTimePerMinute: 0.05 }).valueOfTimePerMinute).toBe(0.05);
     expect(sanitizeSettings({ valueOfTimePerMinute: 1 }).valueOfTimePerMinute).toBe(1);
-    expect(sanitizeSettings({ valueOfTimePerMinute: 0.049 }).valueOfTimePerMinute).toBe(0.15);
+    expect(sanitizeSettings({ valueOfTimePerMinute: -0.01 }).valueOfTimePerMinute).toBe(0.15);
     expect(sanitizeSettings({ valueOfTimePerMinute: 1.01 }).valueOfTimePerMinute).toBe(0.15);
+    expect(sanitizeSettings({ valueOfTimePerMinute: "0,15" }).valueOfTimePerMinute).toBe(0.15);
   });
 
   it("il modello è limitato a 60 caratteri", () => {
     expect(sanitizeSettings({ vehicle: { modelName: "x".repeat(100) } }).vehicle.modelName).toHaveLength(60);
+  });
+});
+
+describe("valore del tuo tempo: preset in €/ora, valore sempre in €/min", () => {
+  it("quattro preset nominati: 0, 6, 9 e 15 €/h", () => {
+    expect(V_TIME_PRESETS.map((p) => [p.label, p.perHour])).toEqual([
+      ["Solo denaro", 0],
+      ["Tranquillo", 6],
+      ["Bilanciato", 9],
+      ["Ho fretta", 15],
+    ]);
+  });
+
+  it("€/h ÷ 60 = €/min: 0, 0,10, 0,15, 0,25 (nessun errore di virgola mobile nei preset)", () => {
+    expect(V_TIME_PRESETS.map((p) => perMinuteFromHour(p.perHour))).toEqual([0, 0.1, 0.15, 0.25]);
+    expect(perMinuteFromHour(60)).toBe(1);
+    expect(perMinuteFromHour(7)).toBe(0.1167); // arrotondato a 4 decimali
+  });
+
+  it("«Bilanciato» è il default di fabbrica (0,15 €/min)", () => {
+    expect(FACTORY_SETTINGS.valueOfTimePerMinute).toBe(perMinuteFromHour(9));
+    expect(vTimePresetFor(FACTORY_SETTINGS.valueOfTimePerMinute)?.label).toBe("Bilanciato");
+  });
+
+  it("riconosce il preset di un valore salvato; un valore intermedio è «Personalizzato» (nessun preset)", () => {
+    expect(vTimePresetFor(0)?.label).toBe("Solo denaro");
+    expect(vTimePresetFor(0.1)?.label).toBe("Tranquillo");
+    expect(vTimePresetFor(0.25)?.label).toBe("Ho fretta");
+    expect(vTimePresetFor(0.3)).toBeUndefined();
+    expect(vTimePresetFor(0.1167)).toBeUndefined(); // 7 €/h
+  });
+
+  it("slider «Personalizzato»: 3–60 €/h a passo 1, cioè 0,05–1,00 €/min: dentro la validazione", () => {
+    expect(V_TIME_CUSTOM_RANGE).toEqual({ min: 3, max: 60, step: 1 });
+    expect(perMinuteFromHour(V_TIME_CUSTOM_RANGE.min)).toBe(0.05);
+    expect(perMinuteFromHour(V_TIME_CUSTOM_RANGE.max)).toBe(1);
+    for (let hour = V_TIME_CUSTOM_RANGE.min; hour <= V_TIME_CUSTOM_RANGE.max; hour++) {
+      expect(sanitizeSettings({ valueOfTimePerMinute: perMinuteFromHour(hour) }).valueOfTimePerMinute).toBe(perMinuteFromHour(hour));
+    }
+  });
+
+  it("€/min → €/h con due decimali, es. 0,3 → 18", () => {
+    expect(perHourFromMinute(0.3)).toBe(18);
+    expect(perHourFromMinute(0.1167)).toBe(7.0);
+    expect(perHourFromMinute(0)).toBe(0);
   });
 });
 
@@ -191,6 +262,9 @@ describe("samePreferences", () => {
       { ...base, referenceMode: "auto" },
       { ...base, manualReference: { benzina: 1.91, diesel: 1.8 } },
       { ...base, avoidMotorway: false },
+      { ...base, avoidTolls: false },
+      { ...base, avoidFerries: true },
+      { ...base, onlySelf: true },
       { ...base, maxPriceAgeHours: 49 },
     ];
     for (const v of variants) expect(samePreferences(base, v)).toBe(false);
