@@ -24,7 +24,7 @@ assets/    Logo ufficiale
 
 ## Prerequisiti
 
-- Node.js ≥ 20
+- Node.js ≥ 24 (è la versione testata, in locale e in CI)
 - pnpm ≥ 9 (consigliato 12)
 - Docker Desktop (per PostgreSQL + PostGIS in locale)
 - Facoltativo: un token Mapbox lato server (senza, l'API usa geocoding "fixture" e routing "mock", vedi sotto)
