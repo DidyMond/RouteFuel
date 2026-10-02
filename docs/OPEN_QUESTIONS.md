@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti i punti **7** e **11** e, dalla Milestone 4, i punti **M4·1–5** (interpretazioni da confermare); tutto il resto è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti i punti **7** e **11** e, dalla Milestone 4, i punti **M4·1–3 e M4·5–9** (interpretazioni da confermare; M4·4 è stato sorpassato dal PO); tutto il resto è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -26,13 +26,22 @@ In modalità «Manuale» il valore vale solo per i carburanti che hanno un numer
 Come nel mockup, le modifiche stanno in una bozza e si applicano con «Salva Preferenze»; «Ripristina Predefiniti» invece salva subito i valori di fabbrica. Uscire dalla schermata senza salvare scarta la bozza (senza avviso). **Raccomando** di tenere così; se preferisci il salvataggio a ogni modifica o un avviso di uscita, è una modifica piccola.
 
 ### M4·3. Intervalli di validazione (M4)
-Nell'interfaccia: V_time 0,05–1,00 €/min (da PLAN), consumo 3–40 km/L, serbatoio 5–120 L, soglia di freschezza 1–720 ore (intero), prezzo manuale 0,5–4 €/L. Il backend accetta ancora V_time da 0 a 2 (retrocompatibile) e rifiuta un prezzo manuale fuori da 0,5–4 €/L. **Raccomando** di tenere così. Confermi?
-
-### M4·4. «Evita autostrada» è una preferenza globale (M4)
-L'interruttore sta solo in Impostazioni e vale per tutte le ricerche successive; non c'è un interruttore nel form di ricerca. Una ricerca già fatta conserva il suo valore (e il badge nei Risultati lo mostra) anche se poi si cambia l'impostazione. **Raccomando** di tenere così fino alla Home di M7. Confermi?
+Nell'interfaccia e nell'API: V_time 0,00–1,00 €/min (da 0 a 60 €/h; l'interfaccia lo propone con preset e uno slider 3–60 €/h), consumo 3–40 km/L, serbatoio 5–120 L, soglia di freschezza 1–720 ore (intero), prezzo manuale 0,5–4 €/L. **Raccomando** di tenere così. Confermi?
 
 ### M4·5. Carrozzeria e modello non entrano nel calcolo (M4)
 Il profilo veicolo salva carrozzeria e modello come promemoria dell'utente, ma l'algoritmo usa solo serbatoio (precompila «Litri»), carburante e consumo: non ho dati MIMIT né fonti per stimare consumi dal modello, quindi non lo invento. **Raccomando** di tenere così. Confermi?
+
+### M4·6. Il carburante predefinito sta in «Profilo Veicolo» (M4)
+Nel mockup 5 i chip del «Carburante predefinito» sono dentro «Consumi e Carburante»; nello scope PO stanno in «Profilo Veicolo», e così sono implementati (il costo/km di «Consumi e Carburante» usa questo carburante). **Raccomando** di tenere così; spostarli è una modifica piccola.
+
+### M4·7. Switch della Home: precompilati, poi per-ricerca (M4)
+«Solo Self» ed «Evita autostrada» nella Home partono dai default delle Impostazioni all'apertura e **ogni volta che le Impostazioni cambiano**. Una modifica fatta nella Home resta nel form finché non si ricarica la pagina o si salvano nuove Impostazioni (come per carburante, litri e consumo: il form conserva ciò che hai inserito), non si azzera dopo ogni ricerca. **Raccomando** di tenere così; se «a ogni nuova ricerca» significa tornare al default dopo ogni invio, è una modifica piccola.
+
+### M4·8. «Applica» nelle Opzioni percorso (M4)
+«Applica» rilancia la ricerca con la stessa richiesta (A/B, carburante, litri, V_time…) e il nuovo insieme di esclusioni; come ogni nuova ricerca, filtri e ordinamento dei Risultati ripartono puliti. Pedaggi e traghetti scelti nel foglio valgono solo per quella ricerca: non diventano preferenza (le preferenze si cambiano nelle Impostazioni). **Raccomando** di tenere così.
+
+### M4·9. «Personalizzato» e il valore del tempo (M4)
+«Personalizzato» è uno stato dell'interfaccia: dopo un salvataggio con un valore uguale a un preset (es. 9 €/h) la volta dopo si riapre come «Bilanciato». Da «Solo denaro» (0 €/h, fuori dallo slider 3–60) lo slider parte dal minimo, 3 €/h. **Raccomando** di tenere così.
 
 ---
 
@@ -66,3 +75,11 @@ Il profilo veicolo salva carrozzeria e modello come promemoria dell'utente, ma l
 - **M3·13. Deep-link del navigatore** — risolto: restano i link https (Apple Maps, Google Maps, Waze). «Apri nel Navigatore» apre **sempre** il menu: l'app predefinita del sistema (Apple Maps su iOS, Google Maps su Android) è in prima posizione con l'etichetta «Consigliato», le altre sotto; un tap sul consigliato equivale al lancio diretto. Nessun pulsante secondario.
 - **M3·14. Tap sulla scheda in Screen 2** — risolto: il tap sulla scheda **seleziona** la stazione (pin evidenziato e percorso con sosta verde, come in M2); il dettaglio si apre **solo** da «Info».
 - **M3·15. Matrice prezzi** — risolto: il listino mostra solo i quattro carburanti MVP e i prezzi entro la soglia di freschezza della ricerca (HVO e carburanti non classificati esclusi).
+- **M4·4. «Evita autostrada» come preferenza globale** — **sorpassata dal PO (02/10/2026, punto 4):** le Impostazioni restano il default globale, ma nella Home c'è uno switch «Evita autostrada» accanto a «Solo Self», precompilato dal default e inviato con ogni ricerca; nei Risultati si cambia con «Opzioni percorso».
+- **Revisione funzionale M4 (PO, 02/10/2026), decisioni 1–6:**
+  1. **Accordion** — tutte e quattro le sezioni di `/settings` chiuse al caricamento (chevron e `aria-expanded` coerenti).
+  2. **«Valore del tuo tempo»** — niente cifra digitata come input primario: chip nominati **Solo denaro** (0 €/h, il tempo non entra in `S_net`), **Tranquillo** (6 €/h ≈ €0,10/min), **Bilanciato** (9 €/h ≈ €0,15/min, default), **Ho fretta** (15 €/h ≈ €0,25/min), **Personalizzato** (slider 3–60 €/h, passo 1, visibile solo se selezionato). Si salva sempre in €/min (preset ÷ 60), validazione 0,00–1,00 €/min; «Ripristina Predefiniti» → «Bilanciato». La configurabilità del PRD è preservata, cambia la presentazione.
+  3. **«Consumi e Carburante»** allineato al mockup 5 — slider 3–40 km/L (passo 0,5), pill del valore, «Ripristina» a 15, caption «8 Sport · 15 Medio · 30 Eco», costo/km dinamico (riferimento manuale se attivo, altrimenti ultimo automatico, «—» se nessuno).
+  4. **Default e per-ricerca** — switch «Evita autostrada» nella Home accanto a «Solo Self»; nuova impostazione «Cerca solo stazioni Self per impostazione predefinita» (default ON) che precompila «Solo Self»; il default resta globale nelle Impostazioni.
+  5. **Opzioni percorso stile Google Maps** — chip-pulsante nei Risultati al posto del banner, foglio con Evita autostrade / pedaggi / traghetti, «Applica» (rilancia `POST /search` con lo stesso A/B) e «Reimposta» (default delle Impostazioni); default dei tre toggle nelle Impostazioni (Accordion 3). **Verificato che Mapbox Directions `mapbox/driving` supporta `exclude=toll` e `exclude=ferry`** (combinabili con la virgola) quindi implementati, con l'insieme di esclusioni nella chiave di cache e la baseline della deviazione sempre contro il diretto con lo stesso insieme. Il pedaggio resta fuori da `S_net` (nessun dato di costo). Nella Home restano solo gli switch «Solo Self» ed «Evita autostrada»: pedaggi e traghetti dalle Opzioni nei Risultati o dai default.
+  6. **Pill «Autostrada»** — disabilitata (grigia) con tooltip «Non disponibile con Evita autostrada» quando la ricerca attiva evita le autostrade; se era attiva e una nuova ricerca o le opzioni le evitano, si disattiva da sola. **Nessun auto-disable per evita-pedaggi** (né traghetti): il filtro Tipo Impianto è dato-indipendente dal tracciato.

@@ -4,7 +4,7 @@ Webapp (PWA) che trova il distributore di carburante più conveniente **lungo** 
 
 Documentazione di prodotto e architettura: [`docs/PRD.md`](docs/PRD.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/STACK_DECISION.md`](docs/STACK_DECISION.md), [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). Design system: [`DESIGN.md`](DESIGN.md).
 
-Stato attuale: **Milestone 4 — Impostazioni** (branch `feat/milestone-4-settings`, in revisione; le Milestone 0–3 sono in `main`). Ricerca A→B con prezzi in tempo reale, schermata Risultati con mappa, dettaglio della stazione e ora la schermata **Impostazioni**: profilo veicolo, consumi, valore del tempo, prezzo di riferimento automatico o manuale, «Evita autostrada» e soglia di freschezza dei prezzi, salvati nel browser e usati come default nella ricerca.
+Stato attuale: **Milestone 4 — Impostazioni** (branch `feat/milestone-4-settings`, in revisione; le Milestone 0–3 sono in `main`). Ricerca A→B con prezzi in tempo reale, schermata Risultati con mappa, dettaglio della stazione e ora la schermata **Impostazioni**: profilo veicolo, consumi, valore del tempo (preset «Solo denaro», «Tranquillo», «Bilanciato», «Ho fretta» o personalizzato), prezzo di riferimento automatico o manuale, esclusioni di percorso (autostrade, pedaggi, traghetti) e soglia di freschezza dei prezzi, salvati nel browser e usati come default nella ricerca. Nei Risultati il chip «Opzioni percorso» rilancia la ricerca con altre esclusioni.
 
 ## Struttura del repository
 
@@ -91,7 +91,7 @@ assets/    Logo ufficiale
 
 ## Provare la ricerca
 
-**Impostazioni:** dalla scheda «Impostazioni» (barra in basso) imposti serbatoio, carburante predefinito, consumo, valore del tempo, prezzo di riferimento (automatico o manuale per carburante), «Evita autostrada» e soglia di freschezza; «Salva Preferenze» le registra nel browser (`routefuel.settings.v1`) e la ricerca successiva riparte da lì. «Ripristina Predefiniti» riporta tutto ai valori di fabbrica. Con «Evita autostrada» i Risultati mostrano un badge e le deviazioni sono misurate contro il percorso senza autostrada.
+**Impostazioni:** dalla scheda «Impostazioni» (barra in basso; le quattro sezioni sono chiuse al caricamento) imposti serbatoio, carburante predefinito, consumo (slider), valore del tuo tempo (preset nominati o slider), prezzo di riferimento (automatico o manuale per carburante), i default di «Evita autostrada», «Evita pedaggi» ed «Evita traghetti», «Solo Self» predefinito e soglia di freschezza; «Salva Preferenze» le registra nel browser (`routefuel.settings.v1`) e la ricerca successiva riparte da lì. «Ripristina Predefiniti» riporta tutto ai valori di fabbrica. La Home ha gli switch «Solo Self» ed «Evita autostrada» per ogni ricerca; nei Risultati il chip «Opzioni percorso» (autostrade, pedaggi, traghetti) rilancia la ricerca con le nuove esclusioni e le deviazioni sono sempre misurate contro il percorso diretto con le stesse opzioni. Il pedaggio non entra nel calcolo del risparmio.
 
 **Dal browser:** apri http://localhost:5173, scegli partenza e destinazione dai suggerimenti (servono almeno 3 caratteri), imposta carburante, litri e deviazione massima, poi "Trova il carburante più conveniente". Si apre la schermata **Risultati**: mappa col percorso e i pin dei prezzi (verde = «Migliore») e, sotto, il foglio con le stazioni. Cambia ordinamento (Più conveniente / Minor deviazione) e filtri (Solo Self, Autostrada) senza nuove chiamate; tocca un pin o una scheda per selezionarla (la mappa disegna in verde il percorso A→stazione→B; un secondo tocco deseleziona), tocca **Info** per aprire il **dettaglio della stazione** (deviazione verificata, impatto sul viaggio, listino prezzi, salva e condividi; «indietro» ritrova i Risultati come li avevi lasciati), **Naviga** apre la navigazione esterna e **Info** il menu con Google Maps, Apple Maps e Waze. Prima compare il ranking con deviazioni *stimate* (`~`); dopo qualche secondo le prime stazioni vengono verificate col routing reale e la lista si aggiorna da sola. Dalla barra in basso, «Cerca» torna al form con i valori inseriti.
 
@@ -121,8 +121,8 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 152 test di `packages/core` + 207 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 236 di `apps/web` | niente: zero rete, zero database |
-| `pnpm --filter @routefuel/web test` | Solo i 236 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
+| `pnpm test` | 152 test di `packages/core` + 218 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 284 di `apps/web` | niente: zero rete, zero database |
+| `pnpm --filter @routefuel/web test` | Solo i 284 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 
