@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo i punti **7** e **11**; tutto il resto è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti i punti **7** e **11** e, dalla Milestone 4, i punti **M4·1–5** (interpretazioni da confermare); tutto il resto è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -18,6 +18,21 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
+
+### M4·1. Prezzo di riferimento manuale con il campo vuoto (M4)
+In modalità «Manuale» il valore vale solo per i carburanti che hanno un numero: un carburante lasciato vuoto usa il calcolo automatico (i campi vuoti mostrano «auto»). L'alternativa è obbligare a compilare tutti e quattro i carburanti. **Raccomando** di tenere così: chi cerca un carburante diverso dal solito non resta senza riferimento. Confermi?
+
+### M4·2. Salvataggio esplicito invece che automatico (M4)
+Come nel mockup, le modifiche stanno in una bozza e si applicano con «Salva Preferenze»; «Ripristina Predefiniti» invece salva subito i valori di fabbrica. Uscire dalla schermata senza salvare scarta la bozza (senza avviso). **Raccomando** di tenere così; se preferisci il salvataggio a ogni modifica o un avviso di uscita, è una modifica piccola.
+
+### M4·3. Intervalli di validazione (M4)
+Nell'interfaccia: V_time 0,05–1,00 €/min (da PLAN), consumo 3–40 km/L, serbatoio 5–120 L, soglia di freschezza 1–720 ore (intero), prezzo manuale 0,5–4 €/L. Il backend accetta ancora V_time da 0 a 2 (retrocompatibile) e rifiuta un prezzo manuale fuori da 0,5–4 €/L. **Raccomando** di tenere così. Confermi?
+
+### M4·4. «Evita autostrada» è una preferenza globale (M4)
+L'interruttore sta solo in Impostazioni e vale per tutte le ricerche successive; non c'è un interruttore nel form di ricerca. Una ricerca già fatta conserva il suo valore (e il badge nei Risultati lo mostra) anche se poi si cambia l'impostazione. **Raccomando** di tenere così fino alla Home di M7. Confermi?
+
+### M4·5. Carrozzeria e modello non entrano nel calcolo (M4)
+Il profilo veicolo salva carrozzeria e modello come promemoria dell'utente, ma l'algoritmo usa solo serbatoio (precompila «Litri»), carburante e consumo: non ho dati MIMIT né fonti per stimare consumi dal modello, quindi non lo invento. **Raccomando** di tenere così. Confermi?
 
 ---
 

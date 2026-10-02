@@ -173,20 +173,37 @@ Branch: `feat/milestone-3-station-detail`.
 
 ---
 
-## Milestone 4 — Screen 5: Impostazioni & Veicolo
+## Milestone 4 — Screen 5: Impostazioni & Veicolo ✅ implementata (in revisione)
 
-**Contenuto:**
-- Accordion profilo veicolo, consumi/carburante, algoritmo/filtri, notifiche/dati sistema.
-- Toggle **«Evita autostrada»** (PRD): passa `exclude=motorway` a Directions **sia al percorso diretto sia alle verifiche** (la deviazione si misura sempre contro il diretto dello stesso tipo); il **pedaggio resta fuori da `S_net`** (Mapbox non ne dà l'importo). Dati raccolti il 30/09/2026 (Mapbox `driving`): Ceriano Laghetto → Lomazzo — diretto 15,49 km / 17,6 min con 5,28 km di A9 a pedaggio, senza autostrada 12,50 km / 18,2 min; Milano → Bologna — diretto 211,0 km / 149,5 min (198,1 km di A1), senza autostrada 255,8 km / 285,9 min. Con «Evita autostrada» sul percorso di test la stazione 1858 Bregnano costerebbe +0,44 km / +2,4 min invece di +1,6 km / +2,9 min.
-- Accordion "Algoritmo & Filtri": nuovo campo **Valore del tuo tempo** (`V_time`, €/min, default 0.15, range validato 0.05–1.00) e nuovo controllo **Prezzo di riferimento**: toggle Automatico (default, consigliato) / Manuale — con un campo numerico per carburante quando "Manuale" è selezionato, pre-compilato con l'ultimo valore automatico calcolato al momento dell'attivazione. Quando manuale, il valore sostituisce **completamente** il calcolo a cascata per tutte le ricerche successive (nessun blending), finché l'utente non torna ad Automatico. Questo soddisfa il requisito PRD di "override per singola ricerca" a livello pragmatico: non essendoci nell'MVP una UI di override rapido in Home/Risultati, il valore manuale impostato qui si applica a ogni ricerca fino a nuova modifica.
-- Accordion "Notifiche & Dati di Sistema": campo soglia di freschezza prezzi (default 72h).
-- Persistenza in `localStorage` (Open Question #10), con valori di default sensati e reset.
-- Collegamento dei parametri salvati come default nel form di ricerca (Screen 1).
+Branch: `feat/milestone-4-settings`.
+
+**Contenuto (come implementato):**
+- **Screen 5** (`/settings`, `SettingsScreen`) con quattro accordion (Profilo Veicolo e Consumi e Carburante aperti, gli altri chiusi; il contenuto resta montato da chiuso):
+  - **Profilo Veicolo:** carrozzeria (Berlina, SUV, Wagon, Moto, Furgone), modello (testo libero), stepper del serbatoio (5–120 L, passo 5), carburante predefinito.
+  - **Consumi e Carburante:** consumo medio misto in km/L (3–40) con «Ripristina»; il costo al km si mostra solo se c'è un ultimo prezzo di riferimento reale (P_avg ÷ consumo).
+  - **Algoritmo & Filtri:** **Valore del tuo tempo** (`V_time`, €/min, default 0,15, range validato **0,05–1,00**); **Prezzo di riferimento** Automatico (default, consigliato) / **Manuale** con un campo €/L per carburante (0,5–4), pre-compilato con l'ultimo valore automatico noto; interruttore **«Evita autostrada»**.
+  - **Notifiche & Dati di Sistema:** soglia di freschezza dei prezzi (intero 1–720 ore, default 72) e la fonte dei prezzi; le notifiche non esistono e lo dice.
+- **Bozza e azioni:** le modifiche restano in una bozza finché non si preme **«Salva Preferenze»** (disattivato senza modifiche o con campi non validi, con messaggio); **«Ripristina Predefiniti»** riporta subito tutto ai valori di fabbrica (compreso **Automatico** sul prezzo di riferimento, `avoidMotorway` spento, 72 h…) e lo salva.
+- **Persistenza:** `localStorage`, chiave versionata **`routefuel.settings.v1`** (`{ version: 1, settings }`): versione sconosciuta, JSON corrotto o campi fuori intervallo tornano ai valori di fabbrica campo per campo; con lo storage bloccato si usa una copia in memoria. Non vengono salvati indirizzi né coordinate (vincolo ToS Mapbox; non c'è nessun preset Casa/Lavoro, arriva con la Home in M7).
+- **Il form di ricerca usa i default salvati** (carburante predefinito, serbatoio come «Litri», consumo) e, quando le Impostazioni cambiano, la ricerca successiva riparte dai nuovi valori. Ogni ricerca riceve da lì `valueOfTimePerMinute`, `maxPriceAgeHours`, `avoidMotorway` e, se manuale, `referencePriceOverride` del carburante cercato.
+- **«Evita autostrada»:** `POST /search` accetta `avoidMotorway` (default `false`) e lo conserva nella sessione di ricerca; Directions riceve `exclude=motorway` **sia per il percorso diretto sia per le verifiche, il percorso con sosta e il dettaglio stazione**: la deviazione si misura sempre contro il diretto dello stesso tipo. La cache dei percorsi tiene separate le due varianti (chiave diversa), kill switch e budget restano gli stessi. Il **pedaggio resta fuori da `S_net`**. Nei Risultati, quando è attivo, un **badge** nel foglio («Evita autostrada attivo · deviazioni contro il percorso senza autostrada», con tooltip) rende chiara la baseline.
+- **Prezzo di riferimento manuale:** `POST /search` accetta `referencePriceOverride` (0,5–4 €/L): sostituisce **completamente** la cascata di P_avg (livello `manual`, nessun blending), anche nel costo al km e nel differenziale del dettaglio. Resta valido finché non si torna ad Automatico (i valori manuali restano memorizzati ma non contano). Un carburante senza valore manuale usa il calcolo automatico.
+- **Barra inferiore a 3 tab:** Cerca, Risultati, Impostazioni.
+- **Fuori scope, per scelta:** preset Casa/Lavoro (Home in M7), notifiche, Screen 4.
 
 **Criteri di accettazione:**
-- [ ] Modificare e salvare le impostazioni cambia i default precompilati nella ricerca successiva.
-- [ ] Attivare "Manuale" su Prezzo di riferimento sostituisce il valore usato in `S_net` in tutte le ricerche successive, disattivarlo ripristina la cascata automatica.
-- [ ] "Ripristina Predefiniti" riporta tutti i campi ai valori di fabbrica (incluso il ritorno ad Automatico per il prezzo di riferimento).
+- [x] Modificare e salvare le impostazioni cambia i default precompilati nella ricerca successiva (test web e verifica nel browser).
+- [x] Attivare «Manuale» sul prezzo di riferimento sostituisce il valore usato in `S_net` in tutte le ricerche successive, tornare ad Automatico ripristina la cascata (test api e web; verificato nel browser: «Prezzo di riferimento €2,500/L (impostato da te nelle Impostazioni)»).
+- [x] «Ripristina Predefiniti» riporta tutti i campi ai valori di fabbrica, incluso Automatico (test).
+- [x] Badge «Evita autostrada» visibile nei Risultati quando attivo (verificato nel browser: percorso di test 13 km invece di 16, deviazioni misurate contro il diretto senza autostrada).
+- [x] Barra a 3 tab; nessuna regressione su Screen 1, 2 e 3 (suite esistente verde).
+- [x] Typecheck pulito; test a fine milestone: core 152, api 207 (+21 sul database), web 236.
+
+**Decisioni e affinamenti emersi in implementazione** (le interpretazioni sono in `OPEN_QUESTIONS.md`, punti M4·1–5):
+1. **`engines`: Node ≥ 24** (unica configurazione testata, in locale e in CI); README aggiornato.
+2. **Un difetto trovato solo nel browser reale:** sull'Accordion la classe `flex` batteva l'attributo `hidden` e le sezioni chiuse restavano visibili; ora `flex` solo da aperta, con test sulla causa (jsdom non carica il CSS).
+3. **Cache dell'ultimo prezzo automatico:** per pre-compilare «Manuale» ogni ricerca automatica ricorda il P_avg del suo carburante (mai quelli manuali) nello stesso oggetto di `localStorage`; non è una preferenza e «Ripristina Predefiniti» la conserva.
+4. **Schema API:** `valueOfTimePerMinute` resta accettato da 0 a 2 (retrocompatibile); il range 0,05–1,00 è imposto dall'interfaccia e dalla lettura delle impostazioni.
 
 ---
 
