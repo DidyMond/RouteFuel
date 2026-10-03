@@ -6,6 +6,7 @@ const ERROR_TITLES: Record<string, string> = {
   NO_PRICE_DATA: "Prezzi non disponibili",
   BUDGET_EXHAUSTED: "Servizio temporaneamente non disponibile",
   NETWORK_ERROR: "Server non raggiungibile",
+  OFFLINE: "Sei offline",
 };
 
 /** Errore di una ricerca, mostrato sotto il form nella Home (i risultati vivono nella schermata Risultati). */

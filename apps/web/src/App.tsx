@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
+import { InstallBanner } from "./components/InstallBanner";
+import { OfflineNotice } from "./components/OfflineNotice";
 import { ResultsScreen } from "./components/results/ResultsScreen";
 import { SearchError } from "./components/SearchError";
 import { SearchForm } from "./components/SearchForm";
@@ -79,6 +81,8 @@ function AppShell() {
 
       {/* La Home resta montata (solo nascosta) sulle altre schermate, così il form conserva i valori inseriti. */}
       <main className={`flex-1 w-full bg-surface pt-24 pb-28 px-margin gap-space-xl max-w-md mx-auto ${onHome ? "flex flex-col" : "hidden"}`}>
+        <InstallBanner />
+        <OfflineNotice />
         <SearchForm onSubmit={search} busy={state.status === "loading"} />
         {state.status === "error" && <SearchError error={state.error} />}
       </main>

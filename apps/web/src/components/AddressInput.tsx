@@ -1,6 +1,7 @@
 import type { LonLat } from "@routefuel/shared";
 import { useId, useState, type ReactNode } from "react";
 import { AUTOCOMPLETE_MIN_CHARS, useAddressAutocomplete } from "../hooks/useAddressAutocomplete";
+import { isOffline, OFFLINE_SUGGESTIONS_MESSAGE } from "../lib/connectivity";
 import { SpinnerIcon } from "./icons";
 
 export interface Place {
@@ -128,7 +129,7 @@ export function AddressInput({
             ))}
             {error && suggestions.length === 0 && (
               <li role="presentation" className="px-space-lg py-space-sm text-body-sm font-body-sm text-on-surface-variant">
-                Suggerimenti non disponibili al momento. Riprova tra poco.
+                {isOffline() ? OFFLINE_SUGGESTIONS_MESSAGE : "Suggerimenti non disponibili al momento. Riprova tra poco."}
               </li>
             )}
           </ul>

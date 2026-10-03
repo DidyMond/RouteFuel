@@ -10,6 +10,7 @@ import type {
   StationDetailResponse,
   StationRouteResponse,
 } from "@routefuel/shared";
+import { isOffline, OFFLINE_MESSAGE } from "./connectivity";
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
@@ -33,6 +34,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
+    // Offline: i dati non vengono mai serviti da una cache, quindi lo si dice chiaramente (la shell si apre comunque).
+    if (isOffline()) throw new ApiError("OFFLINE", OFFLINE_MESSAGE, 0);
     throw new ApiError("NETWORK_ERROR", "Impossibile contattare il server. Controlla la connessione e riprova.", 0);
   }
 

@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 interface ImportMetaEnv {
   /** Token pubblico Mapbox (Map GL JS) con restrizione per URL. Solo in apps/web/.env, mai committato. */
