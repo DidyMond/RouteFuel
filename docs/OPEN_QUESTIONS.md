@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti i punti **7** e **11** e, dalla Milestone 4, i punti **M4·1–3 e M4·5–9** (interpretazioni da confermare; M4·4 è stato sorpassato dal PO); tutto il resto è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo i punti **7** e **11**; tutto il resto, comprese le interpretazioni della Milestone 4 (chiuse il 03/10/2026), è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -18,30 +18,6 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
-
-### M4·1. Prezzo di riferimento manuale con il campo vuoto (M4)
-In modalità «Manuale» il valore vale solo per i carburanti che hanno un numero: un carburante lasciato vuoto usa il calcolo automatico (i campi vuoti mostrano «auto»). L'alternativa è obbligare a compilare tutti e quattro i carburanti. **Raccomando** di tenere così: chi cerca un carburante diverso dal solito non resta senza riferimento. Confermi?
-
-### M4·2. Salvataggio esplicito invece che automatico (M4)
-Come nel mockup, le modifiche stanno in una bozza e si applicano con «Salva Preferenze»; «Ripristina Predefiniti» invece salva subito i valori di fabbrica. Uscire dalla schermata senza salvare scarta la bozza (senza avviso). **Raccomando** di tenere così; se preferisci il salvataggio a ogni modifica o un avviso di uscita, è una modifica piccola.
-
-### M4·3. Intervalli di validazione (M4)
-Nell'interfaccia e nell'API: V_time 0,00–1,00 €/min (da 0 a 60 €/h; l'interfaccia lo propone con preset e uno slider 3–60 €/h), consumo 3–40 km/L, serbatoio 5–120 L, soglia di freschezza 1–720 ore (intero), prezzo manuale 0,5–4 €/L. **Raccomando** di tenere così. Confermi?
-
-### M4·5. Carrozzeria e modello non entrano nel calcolo (M4)
-Il profilo veicolo salva carrozzeria e modello come promemoria dell'utente, ma l'algoritmo usa solo serbatoio (precompila «Litri»), carburante e consumo: non ho dati MIMIT né fonti per stimare consumi dal modello, quindi non lo invento. **Raccomando** di tenere così. Confermi?
-
-### M4·6. Il carburante predefinito sta in «Profilo Veicolo» (M4)
-Nel mockup 5 i chip del «Carburante predefinito» sono dentro «Consumi e Carburante»; nello scope PO stanno in «Profilo Veicolo», e così sono implementati (il costo/km di «Consumi e Carburante» usa questo carburante). **Raccomando** di tenere così; spostarli è una modifica piccola.
-
-### M4·7. Switch della Home: precompilati, poi per-ricerca (M4)
-«Solo Self» ed «Evita autostrada» nella Home partono dai default delle Impostazioni all'apertura e **ogni volta che le Impostazioni cambiano**. Una modifica fatta nella Home resta nel form finché non si ricarica la pagina o si salvano nuove Impostazioni (come per carburante, litri e consumo: il form conserva ciò che hai inserito), non si azzera dopo ogni ricerca. **Raccomando** di tenere così; se «a ogni nuova ricerca» significa tornare al default dopo ogni invio, è una modifica piccola.
-
-### M4·8. «Applica» nelle Opzioni percorso (M4)
-«Applica» rilancia la ricerca con la stessa richiesta (A/B, carburante, litri, V_time…) e il nuovo insieme di esclusioni; come ogni nuova ricerca, filtri e ordinamento dei Risultati ripartono puliti. Pedaggi e traghetti scelti nel foglio valgono solo per quella ricerca: non diventano preferenza (le preferenze si cambiano nelle Impostazioni). **Raccomando** di tenere così.
-
-### M4·9. «Personalizzato» e il valore del tempo (M4)
-«Personalizzato» è uno stato dell'interfaccia: dopo un salvataggio con un valore uguale a un preset (es. 9 €/h) la volta dopo si riapre come «Bilanciato». Da «Solo denaro» (0 €/h, fuori dallo slider 3–60) lo slider parte dal minimo, 3 €/h. **Raccomando** di tenere così.
 
 ---
 
@@ -83,3 +59,16 @@ Nel mockup 5 i chip del «Carburante predefinito» sono dentro «Consumi e Carbu
   4. **Default e per-ricerca** — switch «Evita autostrada» nella Home accanto a «Solo Self»; nuova impostazione «Cerca solo stazioni Self per impostazione predefinita» (default ON) che precompila «Solo Self»; il default resta globale nelle Impostazioni.
   5. **Opzioni percorso stile Google Maps** — chip-pulsante nei Risultati al posto del banner, foglio con Evita autostrade / pedaggi / traghetti, «Applica» (rilancia `POST /search` con lo stesso A/B) e «Reimposta» (default delle Impostazioni); default dei tre toggle nelle Impostazioni (Accordion 3). **Verificato che Mapbox Directions `mapbox/driving` supporta `exclude=toll` e `exclude=ferry`** (combinabili con la virgola) quindi implementati, con l'insieme di esclusioni nella chiave di cache e la baseline della deviazione sempre contro il diretto con lo stesso insieme. Il pedaggio resta fuori da `S_net` (nessun dato di costo). Nella Home restano solo gli switch «Solo Self» ed «Evita autostrada»: pedaggi e traghetti dalle Opzioni nei Risultati o dai default.
   6. **Pill «Autostrada»** — disabilitata (grigia) con tooltip «Non disponibile con Evita autostrada» quando la ricerca attiva evita le autostrade; se era attiva e una nuova ricerca o le opzioni le evitano, si disattiva da sola. **Nessun auto-disable per evita-pedaggi** (né traghetti): il filtro Tipo Impianto è dato-indipendente dal tracciato.
+- **Chiusura M4 (PO, 03/10/2026) — interpretazioni M4·1–3 e M4·5–9 confermate come implementate:**
+  - **M4·1** — in «Manuale» un carburante con il campo vuoto usa il calcolo automatico (i campi vuoti mostrano «auto»).
+  - **M4·2** — salvataggio esplicito: bozza + «Salva Preferenze»; «Ripristina Predefiniti» salva subito i valori di fabbrica; uscire senza salvare scarta la bozza.
+  - **M4·3** — intervalli di validazione (UI e API): V_time 0,00–1,00 €/min, consumo 3–40 km/L, serbatoio 5–120 L, deviazione massima 1–10 km, soglia di freschezza 1–720 ore (intero), prezzo manuale 0,5–4 €/L.
+  - **M4·5** — carrozzeria e modello sono promemoria dell'utente e non entrano nel calcolo.
+  - **M4·6** — il carburante predefinito resta in «Profilo Veicolo» (il mockup 5 lo mette in «Consumi e Carburante»).
+  - **M4·7** — gli switch della Home («Solo Self», «Evita autostrada») partono dai default all'apertura e a ogni cambio delle Impostazioni; la modifica per-ricerca resta nel form finché non si ricarica la pagina o cambiano le Impostazioni.
+  - **M4·8** — «Applica» nelle Opzioni percorso rilancia la ricerca con la stessa richiesta e il nuovo insieme di esclusioni; filtri e ordinamento ripartono puliti; pedaggi e traghetti scelti nel foglio valgono solo per quella ricerca e non diventano preferenza.
+  - **M4·9** — «Personalizzato» (valore del tempo) è uno stato dell'interfaccia non salvato; da «Solo denaro» lo slider parte da 3 €/h.
+- **Chiusura M4 (PO, 03/10/2026) — nuovo campo «Deviazione massima predefinita»:** slider 1–10 km (passo 1, valore di fabbrica 5) in «Algoritmo & Filtri»; precompila lo slider della Home a ogni nuova ricerca (e quando le Impostazioni cambiano), resta modificabile per ricerca; persistito in `routefuel.settings.v1`, presente in `sanitizeSettings`, `FACTORY_SETTINGS` e `samePreferences`; «Ripristina Predefiniti» → 5. Stesso intervallo dello schema API (1–10, `DETOUR_RANGE`).
+- **Chiusura M4 (PO, 03/10/2026) — pannello «Consumi e Carburante»:** tre tacche sotto lo slider distribuite con `justify-between` («8 Sport», «15 Medio», «30 Eco»); «Ripristina» accanto alla pill del valore nella riga intestazione; la riga «ultimo riferimento automatico…/riferimento manuale…» è sostituita da un tooltip sul valore «Costo / km» (es. «calcolato da €1,999/L (ultimo riferimento automatico Benzina) ÷ 15,0 km/L»), resta visibile solo «nessun prezzo di riferimento noto» quando il costo mostra «—»; passo dello slider 0,1 km/L (`CONSUMPTION_SLIDER.step`).
+- **M4·10. «Soglia risparmio minimo» (mockup 5) — FUORI MVP:** non implementata. `S_net` resta l'unico criterio di ordinamento delle stazioni; da rivalutare dopo il lancio con i dati d'uso.
+- **M4·11. «Toggle costo deviazione chilometrica» (mockup 5) — FUORI MVP:** non implementato. `C_km` resta sempre attivo nella formula (decisione vincolante pre-M0); nessun toggle.
