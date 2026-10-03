@@ -1,6 +1,6 @@
 # Open Questions
 
-> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti solo i punti **7** e **11**; tutto il resto, comprese le interpretazioni della Milestone 4 (chiuse il 03/10/2026), è in «Decisioni risolte» in fondo.
+> Milestone 0, 1 e 2 **confermate e integrate in `main`** (M2: 30/09/2026). Restano aperti i punti **7** e **11** e, dalla Milestone 5, i punti **M5·1–5** (decisioni da confermare); tutto il resto, comprese le interpretazioni della Milestone 4 (chiuse il 03/10/2026), è in «Decisioni risolte» in fondo.
 
 ---
 
@@ -18,6 +18,21 @@ Il CSV MIMIT ha 1–2 giorni di ritardo per costruzione («informazioni in vigor
 
 ### 11. Rischio ToS Mapbox su geocoding persistente (invariato)
 Se in futuro salveremo preset Casa/Lavoro, salvare solo l'indirizzo testuale (non le coordinate) evita la categoria "permanent geocoding". Non ho letto i ToS legali riga per riga: verifica formale consigliata prima del lancio pubblico. Non bloccante per l'MVP.
+
+### M5·1. Dati con `NetworkOnly` invece di `NetworkFirst` (M5)
+La richiesta chiedeva `NetworkFirst` per le chiamate API «ma mai cache dei prezzi». Le due cose si contraddicono: `NetworkFirst` salva la risposta e, quando la rete cade, **la ripropone** (prezzi vecchi, dichiarati come attuali). Ho quindi usato **`NetworkOnly`** per `/search`, `/geocode` e `/health`: online funziona uguale, offline la richiesta fallisce e l'app mostra l'errore chiaro. Questo supera anche la riga di `STACK_DECISION.md` che prevedeva di tenere in cache «l'ultima lista risultati JSON» (i risultati già a schermo restano visibili finché non si ricarica la pagina, poi non ci sono più). **Raccomando** di tenere così. Se invece vuoi la lista risultati consultabile offline, va deciso con una data/ora ben visibile («prezzi di 3 ore fa»): dimmelo.
+
+### M5·2. Contrasto del testo bianco su `bg-primary` (`#059669`) (M5)
+Lighthouse segnala `color-contrast` (3,77:1 invece di 4,5:1) sui pulsanti pieni e sulle pill attive con testo piccolo; è la voce già in backlog M7. È un token di design, quindi non l'ho toccato. Opzioni: **(a)** scurire il riempimento dei pulsanti a `#047857` (contrasto 5,5:1; anche `theme_color` del manifest dovrebbe seguire, se vuoi coerenza); **(b)** lasciare `#059669` e portare il testo dei pulsanti a ≥ 18,66 px grassetto (non pratico). **Raccomando (a)**, con aggiornamento di `DESIGN.md`. Confermi?
+
+### M5·3. Installazione su Safari/iOS e su telefono reale (M5)
+Non ho un dispositivo reale: ho verificato su Edge (Chromium) con installabilità, offline e banner. Safari/iOS non emette `beforeinstallprompt` e non si installa da un banner: si usa «Condividi → Aggiungi alla schermata Home» (l'icona `apple-touch-icon` e il manifest sono pronti). **Prova manuale per te:** (1) Android/Chrome: aprire l'indirizzo di produzione, comparirà il banner «Installa RouteFuel» (o menu ⋮ → Installa app); (2) iPhone/Safari: Condividi → Aggiungi a Home, poi aprire l'icona e provare la modalità aereo (la shell si apre, la ricerca dice «Sei offline»). Se vuoi, posso aggiungere su iOS un suggerimento testuale («Aggiungi a Home») al posto del banner; **raccomando** di rimandarlo a dopo la prova sul dispositivo.
+
+### M5·4. Punteggi Lighthouse e cosa misurano (M5)
+La categoria PWA non esiste più da Lighthouse 12: il punteggio PWA (100) è della 11.7.1, il resto della 13.5.0. Risultati e Dettaglio sono schermate di stato (nascono da una ricerca): si misurano in modalità *snapshot* (accessibilità, best practice, SEO), non le prestazioni di caricamento. Inoltre il token pubblico di Mapbox accetta solo `localhost:5173`, quindi nei miei audit la mappa non viene disegnata e i punteggi non ne includono il costo. **Raccomando** di rifare l'audit su un URL di produzione con il token del dominio, dopo il deploy (M6). Confermi?
+
+### M5·5. Prestazioni della Home (M5)
+Home 91 (sopra la soglia di 80), FCP 2,7 s sul profilo mobile simulato (CSS 26 kB e JS 85 kB compressi sul percorso critico). Altre ottimizzazioni (separare il codice, CSS critico in linea) hanno un costo di complessità: **raccomando** di non farle ora e di rivalutare con dati reali di produzione.
 
 ---
 

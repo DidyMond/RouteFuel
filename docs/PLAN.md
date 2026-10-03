@@ -232,18 +232,33 @@ Branch: `feat/milestone-4-settings`. Dopo la prima consegna il product owner ha 
 
 ---
 
-## Milestone 5 — PWA & Rifinitura
+## Milestone 5 — PWA & Rifinitura ✅ implementata (in revisione)
 
-**Contenuto:**
-- Manifest, service worker, installabilità, icona (da `assets/logo.svg`).
-- Caching offline della shell (non dei dati prezzo, che devono restare freschi).
-- Audit accessibilità/performance di base (Lighthouse) sulle 4 screen implementate.
-- Hosting: rewrite SPA su Vercel (ogni percorso → `index.html`, necessario a `/results`).
-- Checklist Mapbox (anche M6): restrizione URL del token `routefuel-web` sul dominio di produzione e avviso di spesa nel pannello Mapbox.
+Branch: `feat/milestone-5-pwa`.
+
+**Contenuto (come implementato):**
+- **Manifest e installabilità** (`vite-plugin-pwa` 1.3, Workbox `generateSW`, `registerType: "autoUpdate"`): `name`/`short_name` «RouteFuel», `description`, `theme_color #059669` (primary), `background_color #f8f9ff` (surface), `display: standalone`, `orientation: portrait`, `start_url: /`. **Icone PNG generate** da `assets/logo.svg` con `sharp` (`pnpm --filter @routefuel/web generate:icons`, PNG committati): 192×192 e 512×512 «any», 512×512 «maskable» (fondo a tutto campo, logo nel 78%), `apple-touch-icon.png` 180×180 e `favicon.ico`. `index.html`: `theme-color`, `apple-touch-icon`, `description`, favicon.
+- **Caching:** la **shell** (HTML, JS, CSS, icone, manifest) è in *precache* versionato — cache-first, hash del contenuto, pulizia delle versioni vecchie a ogni deploy, `skipWaiting`/`clientsClaim` per l'aggiornamento automatico; `navigateFallback` apre la stessa shell per `/results`, `/settings`, `/station/…` anche offline. I **font** di Google Fonts: file `CacheFirst`, CSS `StaleWhileRevalidate`. I **dati** (`/search`, `/geocode`, `/health` dell'API) sono **`NetworkOnly`: mai in cache** (motivo e deviazione dalla richiesta, che indicava `NetworkFirst`, in OPEN_QUESTIONS M5·1). Il chunk di Mapbox GL (~1,9 MB) è fuori dalla precache; tile e stile Mapbox non vengono mai messi in cache (ToS).
+- **Offline:** la shell si apre; la ricerca e i suggerimenti di indirizzo senza rete mostrano un errore chiaro («Sei offline: la ricerca ha bisogno della connessione…»); sui Risultati la mappa dice «Mappa non disponibile offline» e l'elenco già caricato resta visibile; sulla Home un avviso discreto.
+- **Installazione:** hook `useInstallPrompt` (cattura `beforeinstallprompt`, anche se scatta prima del montaggio; una volta per sessione; non propone nulla se già installata/standalone o su browser senza l'evento) e `InstallBanner` — una riga compatta in cima alla Home, `rounded-lg`, `shadow-md`, `bg-surface-container-lowest`, CTA «Installa RouteFuel» e «×» («Non ora»); non copre nulla, nemmeno su schermi stretti.
+- **Audit e correzioni** (`docs/LIGHTHOUSE.md`): landmark `main` su Risultati e Impostazioni, `robots.txt` valido, Google Fonts non bloccante, `vercel.json` (rewrite SPA per `/results`, `sw.js` e manifest senza cache HTTP, `/assets` immutabili).
+- **Verifica della build** (`pnpm --filter @routefuel/web verify:pwa`, eseguita anche in CI nello stesso job): `dist/sw.js`, `manifest.webmanifest`, campi del manifest, icone con le misure giuste, link in `index.html`, precache senza il chunk della mappa e senza endpoint dati, nessun `NetworkFirst`, `robots.txt`, `vercel.json`.
+- **Fuori scope, per scelta:** mappa offline (Mapbox GL non la supporta sul web), cache dell'«ultima lista risultati» prevista da `STACK_DECISION.md` (superata: nessun prezzo in cache), notifiche push, banner di installazione manuale per iOS (OPEN_QUESTIONS M5·3).
+- **Checklist Mapbox (anche M6):** restrizione URL del token `routefuel-web` sul dominio di produzione e avviso di spesa nel pannello Mapbox — da fare al momento del deploy.
 
 **Criteri di accettazione:**
-- [ ] App installabile su mobile (Add to Home Screen) e desktop.
-- [ ] Lighthouse PWA score verde; nessuna regressione performance/accessibilità grave rispetto a M4.
+- [x] App installabile su desktop: Chromium non segnala errori di installabilità e Edge emette `beforeinstallprompt`; banner e CTA verificati. ⚠️ Mobile (Android) e Safari/iOS **non provati su dispositivo reale**: prova manuale in OPEN_QUESTIONS M5·3.
+- [x] Lighthouse **PWA 100** (Lighthouse 11); nessuna regressione grave: Home 91/96/100/100, Impostazioni 100/95/96/100, Risultati e Dettaglio accessibilità 96, best practice 100, SEO 100 (tabella completa in `docs/LIGHTHOUSE.md`). Aperto: contrasto bianco su `#059669` (M5·2).
+- [x] Shell caricabile offline, ricerca offline con errore chiaro, dati prezzo mai in cache (0 voci di cache che siano dati; richieste dati offline falliscono).
+- [x] `pnpm build` produce `dist/sw.js` e `dist/manifest.webmanifest` (verificato da `verify:pwa` e dalla CI).
+- [x] Typecheck pulito; test: core 152, api 218 (+21 sul database), web 349.
+
+**Decisioni e affinamenti emersi in implementazione** (le interpretazioni da confermare sono in `OPEN_QUESTIONS.md`, punti M5·1–5):
+1. **Dati `NetworkOnly`, non `NetworkFirst`** (M5·1): `NetworkFirst` ripiega su una copia vecchia quando la rete cade, cioè mostrerebbe prezzi non freschi, contro l'obiettivo dichiarato.
+2. **Banner di installazione nel flusso della pagina, non fisso:** la prima versione, fissa sopra la barra di navigazione, a 420 px andava a capo su 8 righe e copriva il pulsante di ricerca; scoperto nel browser reale (Edge ha emesso davvero `beforeinstallprompt`).
+3. **Errore offline distinto:** `navigator.onLine === false` produce il codice `OFFLINE` con un messaggio dedicato; con la rete su ma il server giù resta l'errore di rete di sempre.
+4. **Limite dell'emulazione offline di Chromium:** non si applica alle richieste del service worker; lo script di verifica la applica anche al suo target.
+5. **Lighthouse ≥ 12 non ha più la categoria PWA:** punteggio PWA misurato con la 11.7.1, il resto con la 13.5.0.
 
 ---
 

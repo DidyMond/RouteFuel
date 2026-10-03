@@ -4,7 +4,7 @@ Webapp (PWA) che trova il distributore di carburante più conveniente **lungo** 
 
 Documentazione di prodotto e architettura: [`docs/PRD.md`](docs/PRD.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/STACK_DECISION.md`](docs/STACK_DECISION.md), [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md). Design system: [`DESIGN.md`](DESIGN.md).
 
-Stato attuale: **Milestone 4 — Impostazioni** (branch `feat/milestone-4-settings`, in revisione; le Milestone 0–3 sono in `main`). Ricerca A→B con prezzi in tempo reale, schermata Risultati con mappa, dettaglio della stazione e ora la schermata **Impostazioni**: profilo veicolo, consumi, valore del tempo (preset «Solo denaro», «Tranquillo», «Bilanciato», «Ho fretta» o personalizzato), prezzo di riferimento automatico o manuale, esclusioni di percorso (autostrade, pedaggi, traghetti) e soglia di freschezza dei prezzi, salvati nel browser e usati come default nella ricerca. Nei Risultati il chip «Opzioni percorso» rilancia la ricerca con altre esclusioni.
+Stato attuale: **Milestone 5 — PWA** (branch `feat/milestone-5-pwa`, in revisione; le Milestone 0–4 sono in `main`). Ricerca A→B con prezzi in tempo reale, Risultati con mappa, dettaglio della stazione, Impostazioni e ora l'app è **installabile** (manifest, icone, service worker) e la sua shell funziona offline; i prezzi non vengono mai messi in cache.
 
 ## Struttura del repository
 
@@ -117,12 +117,39 @@ Autocomplete: `Invoke-RestMethod "http://localhost:3001/geocode/autocomplete?q=p
 - **Attenzione:** l'endpoint del sito non è un'API pubblica documentata e ha un limite di richieste (risponde `429`). Il client è volutamente prudente (3 chiamate in parallelo, tetto di 40 riquadri per ricerca, pausa automatica su 429). Non alzare i limiti senza motivo; vedi `docs/OPEN_QUESTIONS.md` (punto 7). `LIVE_PRICES_PROVIDER=off` in `apps/api/.env` la disattiva.
 - La prima ricerca in una zona nuova può richiedere alcuni secondi in più (fino a ~10 s su percorsi lunghi, con copertura parziale dichiarata); le successive nella stessa zona sono immediate.
 
+## PWA: installazione e prova offline
+
+RouteFuel è una PWA: si può installare (Aggiungi alla schermata Home) e la sua **shell** (HTML, JS, CSS, icone, font) funziona anche senza rete. Prezzi, ricerche e indirizzi **non** vengono mai messi in cache: offline la ricerca mostra un errore chiaro, la mappa dice «Mappa non disponibile offline».
+
+Il service worker esiste solo nella **build di produzione** (con `pnpm dev` non c'è): per provarlo in locale serve la build servita da `vite preview`.
+
+```bash
+# 1) API in esecuzione (come in «Setup locale»); porta 3001 di default
+pnpm dev:api
+
+# 2) build di produzione e verifica (service worker, manifest, icone, regole di cache)
+pnpm --filter @routefuel/web build
+pnpm --filter @routefuel/web verify:pwa
+
+# 3) servire la build su http://localhost:4173
+pnpm --filter @routefuel/web preview
+```
+
+Poi, in Chrome o Edge su `http://localhost:4173` (`localhost` conta come origine sicura):
+
+1. **DevTools → Application → Manifest**: nome, icone (192, 512, maskable), colori; la sezione «Installability» non deve segnalare errori. L'icona di installazione compare nella barra degli indirizzi (o menu ⋮ → Installa RouteFuel); in pagina compare anche il banner «Installa RouteFuel».
+2. **Application → Service Workers**: stato *activated and is running*; **Cache storage** → `workbox-precache…` con la shell (e `routefuel-fonts-*`): non deve contenere nessuna risposta dell'API.
+3. **Offline**: spunta *Offline* in Service Workers (o Network → Offline) e ricarica la pagina: la Home e `/settings` si aprono; una ricerca mostra «Sei offline…».
+4. **Aggiornamenti**: a ogni nuova build il service worker si aggiorna da solo (nessun prompt) e le cache vecchie vengono eliminate.
+
+Note: le chiamate all'API usano `VITE_API_BASE_URL` **al momento della build** (la regola «mai in cache» ne usa l'origine): se l'API non è su `http://localhost:3001`, imposta la variabile prima di `build` (es. `VITE_API_BASE_URL=http://localhost:3011 pnpm --filter @routefuel/web build`). Il token pubblico di Mapbox è ristretto per URL (`localhost:5173`): sulla porta 4173 la mappa non si disegna (l'elenco sì). Le icone sono generate da `assets/logo.svg` (`pnpm --filter @routefuel/web generate:icons`). Audit Lighthouse e prova offline nel browser: [`docs/LIGHTHOUSE.md`](docs/LIGHTHOUSE.md).
+
 ## Test
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 152 test di `packages/core` + 218 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 309 di `apps/web` | niente: zero rete, zero database |
-| `pnpm --filter @routefuel/web test` | Solo i 309 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
+| `pnpm test` | 152 test di `packages/core` + 218 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 349 di `apps/web` | niente: zero rete, zero database |
+| `pnpm --filter @routefuel/web test` | Solo i 349 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 
