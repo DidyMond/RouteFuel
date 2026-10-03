@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsProvider, useSettings } from "../hooks/useSettings";
@@ -99,6 +99,52 @@ describe("SearchForm — precompilazione dalle Impostazioni", () => {
     await user.type(input, "22");
     await user.click(screen.getByRole("button", { name: "Ripristina" }));
     expect(input).toHaveValue("18");
+  });
+});
+
+describe("SearchForm — deviazione massima dalle Impostazioni", () => {
+  const slider = () => screen.getByLabelText("Deviazione massima") as HTMLInputElement;
+
+  it("senza impostazioni salvate lo slider parte da 5 km; con «Deviazione massima predefinita» salvata parte da quel valore", () => {
+    const first = render(
+      <SettingsProvider>
+        <SearchForm onSubmit={vi.fn()} busy={false} />
+      </SettingsProvider>,
+    );
+    expect(slider()).toHaveValue("5");
+    first.unmount();
+    saveSettings({ ...FACTORY_SETTINGS, defaultMaxDetourKm: 8 });
+    render(
+      <SettingsProvider>
+        <SearchForm onSubmit={vi.fn()} busy={false} />
+      </SettingsProvider>,
+    );
+    expect(slider()).toHaveValue("8");
+    expect(screen.getByText("8 km")).toBeInTheDocument();
+  });
+
+  it("si può cambiare per ricerca e la richiesta porta il valore dello slider", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ defaultMaxDetourKm: 7 }) });
+    fireEvent.change(slider(), { target: { value: "3" } });
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ maxDetourKm: 3 });
+  });
+
+  it("la richiesta di default porta il valore predefinito delle Impostazioni", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderForm({ settings: settings({ defaultMaxDetourKm: 9 }) });
+    await submit(user);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ maxDetourKm: 9 });
+  });
+
+  it("quando le Impostazioni cambiano lo slider riparte dal nuovo default", async () => {
+    const user = userEvent.setup();
+    renderForm({ next: settings({ defaultMaxDetourKm: 2 }) });
+    fireEvent.change(slider(), { target: { value: "6" } });
+    expect(slider()).toHaveValue("6");
+    await user.click(screen.getByRole("button", { name: "applica impostazioni" }));
+    expect(slider()).toHaveValue("2");
   });
 });
 

@@ -1,5 +1,5 @@
 import type { SearchFuelType } from "@routefuel/shared";
-import { CONSUMPTION_RANGE, FUEL_OPTIONS, LITERS_RANGE, SEARCH_DEFAULTS } from "./defaults";
+import { CONSUMPTION_RANGE, DETOUR_RANGE, FUEL_OPTIONS, LITERS_RANGE, SEARCH_DEFAULTS } from "./defaults";
 
 /**
  * Impostazioni dell'utente (Screen 5), solo in `localStorage` con chiave versionata. Non contengono indirizzi né
@@ -57,6 +57,8 @@ export interface Settings {
   avoidFerries: boolean;
   /** «Cerca solo stazioni Self per impostazione predefinita»: precompila lo switch «Solo Self» della Home. */
   onlySelf: boolean;
+  /** «Deviazione massima predefinita», km (1–10, come lo schema API): precompila lo slider della ricerca. */
+  defaultMaxDetourKm: number;
   /** Prezzi comunicati da più di N ore sono esclusi. */
   maxPriceAgeHours: number;
 }
@@ -87,7 +89,7 @@ export function vTimePresetFor(perMinute: number): (typeof V_TIME_PRESETS)[numbe
 }
 
 /** Slider del consumo (km/L). */
-export const CONSUMPTION_SLIDER = { min: 3, max: 40, step: 0.5, default: 15 } as const;
+export const CONSUMPTION_SLIDER = { min: 3, max: 40, step: 0.1, default: 15 } as const;
 export const TANK_RANGE = LITERS_RANGE;
 export const FRESHNESS_RANGE = { min: 1, max: 720 } as const;
 export const REFERENCE_PRICE_RANGE = { min: 0.5, max: 4 } as const;
@@ -108,6 +110,7 @@ export const FACTORY_SETTINGS: Settings = {
   avoidTolls: false,
   avoidFerries: false,
   onlySelf: SEARCH_DEFAULTS.onlySelf,
+  defaultMaxDetourKm: SEARCH_DEFAULTS.maxDetourKm,
   maxPriceAgeHours: SEARCH_DEFAULTS.maxPriceAgeHours,
 };
 
@@ -150,6 +153,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     avoidFerries: raw.avoidFerries === true,
     // Default ON: solo un `false` esplicito lo spegne (un salvataggio precedente senza il campo resta ON).
     onlySelf: raw.onlySelf === false ? false : f.onlySelf,
+    defaultMaxDetourKm: inRange(raw.defaultMaxDetourKm, DETOUR_RANGE.min, DETOUR_RANGE.max) ? raw.defaultMaxDetourKm : f.defaultMaxDetourKm,
     maxPriceAgeHours:
       inRange(raw.maxPriceAgeHours, FRESHNESS_RANGE.min, FRESHNESS_RANGE.max) && Number.isInteger(raw.maxPriceAgeHours)
         ? raw.maxPriceAgeHours
@@ -226,6 +230,6 @@ export function parseDecimal(text: string): number | null {
 /** Due impostazioni coincidono per le preferenze (la cache dell'ultimo prezzo automatico non conta; l'ordine delle chiavi neppure). */
 export function samePreferences(a: Settings, b: Settings): boolean {
   const key = (s: Settings) =>
-    JSON.stringify([s.vehicle, s.consumptionKmPerLiter, s.valueOfTimePerMinute, s.referenceMode, FUELS.map((f) => s.manualReference[f] ?? null), s.avoidMotorway, s.avoidTolls, s.avoidFerries, s.onlySelf, s.maxPriceAgeHours]);
+    JSON.stringify([s.vehicle, s.consumptionKmPerLiter, s.valueOfTimePerMinute, s.referenceMode, FUELS.map((f) => s.manualReference[f] ?? null), s.avoidMotorway, s.avoidTolls, s.avoidFerries, s.onlySelf, s.defaultMaxDetourKm, s.maxPriceAgeHours]);
   return key(a) === key(b);
 }

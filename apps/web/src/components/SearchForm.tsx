@@ -34,7 +34,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
 
   const [fuelType, setFuelType] = useState<SearchFuelType>(settings.vehicle.defaultFuel);
   const [liters, setLiters] = useState<number>(settings.vehicle.tankLiters);
-  const [maxDetourKm, setMaxDetourKm] = useState<number>(SEARCH_DEFAULTS.maxDetourKm);
+  const [maxDetourKm, setMaxDetourKm] = useState<number>(settings.defaultMaxDetourKm);
   const [consumptionText, setConsumptionText] = useState(String(settings.consumptionKmPerLiter));
   // «Solo Self» e «Evita autostrada» partono dai default delle Impostazioni e restano modificabili per ricerca.
   const [onlySelf, setOnlySelf] = useState<boolean>(settings.onlySelf);
@@ -57,7 +57,8 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
     setConsumptionText(String(settings.consumptionKmPerLiter));
     setOnlySelf(settings.onlySelf);
     setAvoidMotorway(settings.avoidMotorway);
-  }, [settings.vehicle.defaultFuel, settings.vehicle.tankLiters, settings.consumptionKmPerLiter, settings.onlySelf, settings.avoidMotorway]);
+    setMaxDetourKm(settings.defaultMaxDetourKm);
+  }, [settings.vehicle.defaultFuel, settings.vehicle.tankLiters, settings.consumptionKmPerLiter, settings.onlySelf, settings.avoidMotorway, settings.defaultMaxDetourKm]);
   const ready = origin.place !== null && destination.place !== null && consumptionValid;
 
   const swap = () => {

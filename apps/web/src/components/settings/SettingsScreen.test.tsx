@@ -47,6 +47,7 @@ const type = async (user: User, label: string, text: string) => {
   await user.clear(input);
   if (text) await user.type(input, text);
 };
+const detourSlider = () => screen.getByRole("slider", { name: "Deviazione massima predefinita" }) as HTMLInputElement;
 const consumptionSlider = () => screen.getByRole("slider", { name: "Consumo medio misto" }) as HTMLInputElement;
 const timeSlider = () => screen.getByRole("slider", { name: "Valore del tuo tempo in euro all'ora" }) as HTMLInputElement;
 const setSlider = (slider: HTMLElement, value: number) => fireEvent.change(slider, { target: { value: String(value) } });
@@ -184,20 +185,36 @@ describe("SettingsScreen — salvataggio", () => {
 });
 
 describe("SettingsScreen — consumi e carburante (slider come da mockup 5)", () => {
-  it("slider 3–40 km/L con passo 0,5, pill del valore corrente e caption «8 Sport · 15 Medio · 30 Eco»", async () => {
+  it("slider 3–40 km/L con passo 0,1, pill del valore corrente e tre tacche «8 Sport», «15 Medio», «30 Eco»", async () => {
     const user = userEvent.setup();
     renderScreen();
     await open(user, "Consumi e Carburante");
     const slider = consumptionSlider();
     expect(slider).toHaveAttribute("min", "3");
     expect(slider).toHaveAttribute("max", "40");
-    expect(slider).toHaveAttribute("step", "0.5");
+    expect(slider).toHaveAttribute("step", "0.1");
     expect(slider).toHaveValue("15");
     expect(screen.getByTestId("consumption-pill")).toHaveTextContent("15,0 km/L");
-    expect(screen.getByText("8 Sport · 15 Medio · 30 Eco")).toBeInTheDocument();
   });
 
-  it("muovere lo slider aggiorna la pill e si salva come numero (anche con passo 0,5)", async () => {
+  it("le tre tacche stanno sotto lo slider, distribuite con justify-between: Sport a sinistra, Medio al centro, Eco a destra", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await open(user, "Consumi e Carburante");
+    const sport = screen.getByText("8 Sport");
+    const medio = screen.getByText("15 Medio");
+    const eco = screen.getByText("30 Eco");
+    expect(sport.parentElement).toBe(medio.parentElement);
+    expect(medio.parentElement).toBe(eco.parentElement);
+    expect(sport.parentElement).toHaveClass("flex", "justify-between");
+    expect([...sport.parentElement!.children]).toEqual([sport, medio, eco]);
+    // Sotto lo slider, e la riga delle tacche non contiene altro (nessun pulsante «Ripristina» a sporcarla).
+    expect(consumptionSlider().compareDocumentPosition(sport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    setSlider(consumptionSlider(), 22);
+    expect(within(sport.parentElement!).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("muovere lo slider aggiorna la pill e si salva come numero (passo 0,1)", async () => {
     const user = userEvent.setup();
     renderScreen();
     await open(user, "Consumi e Carburante");
@@ -210,6 +227,28 @@ describe("SettingsScreen — consumi e carburante (slider come da mockup 5)", ()
     setSlider(consumptionSlider(), 22.5);
     await user.click(saveButton());
     expect(saved().consumptionKmPerLiter).toBe(22.5);
+  });
+
+  it("lo slider ha la risoluzione di 0,1 km/L: 15,3 e 7,8 si mostrano e si salvano esatti", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await open(user, "Consumi e Carburante");
+    setSlider(consumptionSlider(), 15.3);
+    expect(screen.getByTestId("consumption-pill")).toHaveTextContent("15,3 km/L");
+    setSlider(consumptionSlider(), 7.8);
+    expect(screen.getByTestId("consumption-pill")).toHaveTextContent("7,8 km/L");
+    await user.click(saveButton());
+    expect(saved().consumptionKmPerLiter).toBe(7.8);
+  });
+
+  it("«Ripristina» sta nella riga intestazione, accanto alla pill del valore (non sotto lo slider)", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await open(user, "Consumi e Carburante");
+    setSlider(consumptionSlider(), 20);
+    const restore = screen.getByRole("button", { name: "Ripristina" });
+    expect(restore.parentElement).toBe(screen.getByTestId("consumption-pill").parentElement);
+    expect(restore.compareDocumentPosition(consumptionSlider()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // sopra lo slider
   });
 
   it("«Ripristina» appare solo se il valore è cambiato e riporta il consumo a 15", async () => {
@@ -229,6 +268,7 @@ describe("SettingsScreen — consumi e carburante (slider come da mockup 5)", ()
     renderScreen();
     await open(user, "Consumi e Carburante");
     expect(screen.getByTestId("cost-per-km")).toHaveTextContent("—");
+    expect(screen.getByTestId("cost-per-km")).not.toHaveAttribute("title"); // niente tooltip senza derivazione
     expect(screen.getByText("nessun prezzo di riferimento noto")).toBeInTheDocument();
   });
 
@@ -238,7 +278,10 @@ describe("SettingsScreen — consumi e carburante (slider come da mockup 5)", ()
     renderScreen();
     await open(user, "Consumi e Carburante");
     expect(screen.getByTestId("cost-per-km")).toHaveTextContent("~€0,12/km"); // 1,80 ÷ 15
-    expect(screen.getByText(/ultimo riferimento automatico Benzina €1,800\/L/)).toBeInTheDocument();
+    // La derivazione non è una riga visibile: sta nel tooltip del valore.
+    expect(screen.getByTestId("cost-per-km")).toHaveAttribute("title", "calcolato da €1,800/L (ultimo riferimento automatico Benzina) ÷ 15,0 km/L");
+    expect(screen.queryByText(/ultimo riferimento automatico/)).not.toBeInTheDocument();
+    expect(screen.queryByText("nessun prezzo di riferimento noto")).not.toBeInTheDocument(); // compare solo con «—»
   });
 
   it("costo/km è dinamico: segue il consumo scelto con lo slider", async () => {
@@ -258,7 +301,8 @@ describe("SettingsScreen — consumi e carburante (slider come da mockup 5)", ()
     renderScreen();
     await open(user, "Consumi e Carburante");
     expect(screen.getByTestId("cost-per-km")).toHaveTextContent("~€0,15/km"); // 2,25 ÷ 15
-    expect(screen.getByText(/riferimento manuale Benzina €2,250\/L/)).toBeInTheDocument();
+    expect(screen.getByTestId("cost-per-km")).toHaveAttribute("title", "calcolato da €2,250/L (riferimento manuale Benzina) ÷ 15,0 km/L");
+    expect(screen.queryByText(/riferimento manuale Benzina/)).not.toBeInTheDocument();
   });
 
   it("costo/km: cambiando il carburante predefinito usa il riferimento di quel carburante, «—» se non lo conosce", async () => {
@@ -461,6 +505,36 @@ describe("SettingsScreen — algoritmo e filtri", () => {
     expect(screen.getAllByText(/non rientra nel calcolo/).length).toBeGreaterThan(0);
   });
 
+  it("«Deviazione massima predefinita»: slider 1–10 km (passo 1), di fabbrica 5, si salva e precompila la ricerca", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await open(user, "Algoritmo & Filtri");
+    const slider = detourSlider();
+    expect(slider).toHaveAttribute("min", "1");
+    expect(slider).toHaveAttribute("max", "10");
+    expect(slider).toHaveAttribute("step", "1");
+    expect(slider).toHaveValue("5");
+    expect(screen.getByTestId("default-detour-pill")).toHaveTextContent("5 km");
+
+    setSlider(detourSlider(), 8);
+    expect(screen.getByTestId("default-detour-pill")).toHaveTextContent("8 km");
+    await user.click(saveButton());
+    expect(saved().defaultMaxDetourKm).toBe(8);
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).settings.defaultMaxDetourKm).toBe(8);
+  });
+
+  it("«Deviazione massima predefinita»: agli estremi 1 e 10 km", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await open(user, "Algoritmo & Filtri");
+    for (const km of [1, 10]) {
+      setSlider(detourSlider(), km);
+      expect(screen.getByTestId("default-detour-pill")).toHaveTextContent(`${km} km`);
+      await user.click(saveButton());
+      expect(saved().defaultMaxDetourKm).toBe(km);
+    }
+  });
+
   it("«Solo Self» predefinito è ON di fabbrica e spegnerlo si salva", async () => {
     const user = userEvent.setup();
     renderScreen();
@@ -578,6 +652,7 @@ describe("SettingsScreen — Ripristina Predefiniti", () => {
       avoidTolls: true,
       avoidFerries: true,
       onlySelf: false,
+      defaultMaxDetourKm: 8,
       maxPriceAgeHours: 24,
     });
     const user = userEvent.setup();
@@ -594,6 +669,7 @@ describe("SettingsScreen — Ripristina Predefiniti", () => {
     expect(within(screen.getByRole("group", { name: "Capacità serbatoio" })).getByText("45 L")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Benzina" })).toBeChecked();
     expect(consumptionSlider()).toHaveValue("15");
+    expect(detourSlider()).toHaveValue("5");
     expect(screen.getByRole("radio", { name: "Bilanciato" })).toBeChecked();
     expect(screen.queryByRole("slider", { name: /Valore del tuo tempo/ })).not.toBeInTheDocument(); // «Personalizzato» chiuso
     expect(screen.getByRole("radio", { name: /Automatico/ })).toBeChecked();
@@ -633,6 +709,43 @@ describe("SettingsScreen — Ripristina Predefiniti", () => {
     await user.click(restoreButton());
     expect(field("Soglia di freschezza prezzi")).toHaveValue("72");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("SettingsScreen — ogni campo persistito abilita «Salva Preferenze»", () => {
+  type Case = (user: User) => Promise<unknown>;
+  const toggle = (name: string): Case => async (user) => user.click(screen.getByRole("switch", { name }));
+  const CASES: Record<Exclude<keyof Settings, "lastAutomaticReference">, { seed?: Partial<Settings>; act: Case }> = {
+    vehicle: { act: async (user) => user.click(screen.getByRole("radio", { name: "SUV" })) },
+    consumptionKmPerLiter: { act: async () => setSlider(consumptionSlider(), 20) },
+    valueOfTimePerMinute: { act: async (user) => user.click(screen.getByRole("radio", { name: "Tranquillo" })) },
+    referenceMode: { act: async (user) => user.click(screen.getByRole("radio", { name: /Manuale/ })) },
+    manualReference: { seed: { referenceMode: "manual" }, act: async (user) => type(user, "Benzina", "1,95") },
+    avoidMotorway: { act: toggle("Evita autostrada") },
+    avoidTolls: { act: toggle("Evita pedaggi") },
+    avoidFerries: { act: toggle("Evita traghetti") },
+    onlySelf: { act: toggle("Cerca solo stazioni Self per impostazione predefinita") },
+    defaultMaxDetourKm: { act: async () => setSlider(detourSlider(), 8) },
+    maxPriceAgeHours: { act: async (user) => type(user, "Soglia di freschezza prezzi", "24") },
+  };
+
+  it("la tabella copre TUTTI i campi di FACTORY_SETTINGS (un campo nuovo senza caso fa fallire questo test)", () => {
+    const persisted = Object.keys(FACTORY_SETTINGS).filter((key) => key !== "lastAutomaticReference");
+    expect(Object.keys(CASES).sort()).toEqual(persisted.sort());
+  });
+
+  it.each(Object.keys(CASES) as Array<keyof typeof CASES>)("%s: modificarlo abilita il salvataggio e lo scrive", async (key) => {
+    const { seed: seedPatch, act } = CASES[key];
+    if (seedPatch) seed(seedPatch);
+    const user = userEvent.setup();
+    renderScreen();
+    await openAll(user);
+    expect(saveButton()).toBeDisabled();
+    await act(user);
+    expect(saveButton()).toBeEnabled();
+    await user.click(saveButton());
+    const before = { ...FACTORY_SETTINGS, ...seedPatch }[key];
+    expect(JSON.stringify(saved()[key])).not.toBe(JSON.stringify(before)); // il valore scritto è cambiato
   });
 });
 

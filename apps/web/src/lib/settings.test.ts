@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DETOUR_RANGE } from "./defaults";
 import {
   factorySettings,
   FACTORY_SETTINGS,
   loadSettings,
+  CONSUMPTION_SLIDER,
   parseDecimal,
   perHourFromMinute,
   perMinuteFromHour,
@@ -37,6 +39,7 @@ const custom = (): Settings => ({
   avoidTolls: true,
   avoidFerries: false,
   onlySelf: false,
+  defaultMaxDetourKm: 8,
   maxPriceAgeHours: 48,
 });
 
@@ -51,6 +54,7 @@ describe("valori di fabbrica", () => {
     expect(FACTORY_SETTINGS.avoidTolls).toBe(false);
     expect(FACTORY_SETTINGS.avoidFerries).toBe(false);
     expect(FACTORY_SETTINGS.onlySelf).toBe(true);
+    expect(FACTORY_SETTINGS.defaultMaxDetourKm).toBe(5);
     expect(FACTORY_SETTINGS.maxPriceAgeHours).toBe(72);
   });
 
@@ -118,6 +122,7 @@ describe("sanitizeSettings — ogni campo non valido torna al valore di fabbrica
       avoidTolls: 1,
       avoidFerries: "true",
       onlySelf: "no",
+      defaultMaxDetourKm: 11,
       maxPriceAgeHours: 3.5,
     };
     const clean = sanitizeSettings(dirty);
@@ -131,7 +136,30 @@ describe("sanitizeSettings — ogni campo non valido torna al valore di fabbrica
     expect(clean.avoidTolls).toBe(false);
     expect(clean.avoidFerries).toBe(false);
     expect(clean.onlySelf).toBe(true); // solo un false esplicito lo spegne
+    expect(clean.defaultMaxDetourKm).toBe(5);
     expect(clean.maxPriceAgeHours).toBe(72);
+  });
+
+  it("deviazione massima predefinita: 1–10 km come lo schema API; 0, 11, testo o NaN tornano a 5; assente (salvataggio vecchio) = 5", () => {
+    for (const ok of [1, 5, 8, 10]) expect(sanitizeSettings({ defaultMaxDetourKm: ok }).defaultMaxDetourKm).toBe(ok);
+    for (const bad of [0, 0.5, 10.5, 11, -3, "7", null, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(sanitizeSettings({ defaultMaxDetourKm: bad }).defaultMaxDetourKm, String(bad)).toBe(5);
+    }
+    expect(sanitizeSettings({}).defaultMaxDetourKm).toBe(5);
+    expect(DETOUR_RANGE).toMatchObject({ min: 1, max: 10 }); // stesso intervallo dello schema API (min 1, max 10)
+  });
+
+  it("«Solo denaro»: valueOfTimePerMinute = 0 è conservato (non è scambiato per «assente» né ripristinato al default)", () => {
+    expect(sanitizeSettings({ valueOfTimePerMinute: 0 }).valueOfTimePerMinute).toBe(0);
+    saveSettings({ ...FACTORY_SETTINGS, valueOfTimePerMinute: 0 });
+    expect(loadSettings().valueOfTimePerMinute).toBe(0);
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).settings.valueOfTimePerMinute).toBe(0);
+  });
+
+  it("lo slider dei consumi ha passo 0,1 e copre 3–40 km/L; i valori a un decimale sono ammessi", () => {
+    expect(CONSUMPTION_SLIDER).toEqual({ min: 3, max: 40, step: 0.1, default: 15 });
+    expect(sanitizeSettings({ consumptionKmPerLiter: 15.3 }).consumptionKmPerLiter).toBe(15.3);
+    expect(sanitizeSettings({ consumptionKmPerLiter: 2.9 }).consumptionKmPerLiter).toBe(15);
   });
 
   it("«Solo Self» predefinito: solo `false` lo spegne; un salvataggio senza il campo resta ON", () => {
@@ -265,8 +293,31 @@ describe("samePreferences", () => {
       { ...base, avoidTolls: false },
       { ...base, avoidFerries: true },
       { ...base, onlySelf: true },
+      { ...base, defaultMaxDetourKm: 9 },
       { ...base, maxPriceAgeHours: 49 },
     ];
     for (const v of variants) expect(samePreferences(base, v)).toBe(false);
+  });
+
+  it("copre TUTTI i campi persistiti: per ciascuno (tranne la cache) una variante deve risultare diversa", () => {
+    const base = custom();
+    const change: Record<Exclude<keyof Settings, "lastAutomaticReference">, Partial<Settings>> = {
+      vehicle: { vehicle: { ...base.vehicle, modelName: "altro" } },
+      consumptionKmPerLiter: { consumptionKmPerLiter: base.consumptionKmPerLiter + 0.1 },
+      valueOfTimePerMinute: { valueOfTimePerMinute: 0 },
+      referenceMode: { referenceMode: "auto" },
+      manualReference: { manualReference: { ...base.manualReference, gpl: 0.8 } },
+      avoidMotorway: { avoidMotorway: !base.avoidMotorway },
+      avoidTolls: { avoidTolls: !base.avoidTolls },
+      avoidFerries: { avoidFerries: !base.avoidFerries },
+      onlySelf: { onlySelf: !base.onlySelf },
+      defaultMaxDetourKm: { defaultMaxDetourKm: base.defaultMaxDetourKm + 1 },
+      maxPriceAgeHours: { maxPriceAgeHours: base.maxPriceAgeHours + 1 },
+    };
+    // Una chiave nuova in Settings senza una riga qui (e senza essere confrontata in samePreferences) fa fallire il test.
+    expect(Object.keys(change).sort()).toEqual(Object.keys(custom()).filter((key) => key !== "lastAutomaticReference").sort());
+    for (const [field, patch] of Object.entries(change)) {
+      expect(samePreferences(base, { ...base, ...patch }), field).toBe(false);
+    }
   });
 });

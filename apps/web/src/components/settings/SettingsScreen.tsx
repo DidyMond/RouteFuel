@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNotice } from "../../hooks/useNotice";
 import { formatPrice } from "../../lib/format";
 import { useSettings } from "../../hooks/useSettings";
-import { FUEL_OPTIONS } from "../../lib/defaults";
+import { DETOUR_RANGE, FUEL_OPTIONS } from "../../lib/defaults";
 import {
   BODY_TYPES,
   CONSUMPTION_SLIDER,
@@ -104,7 +104,11 @@ export function SettingsScreen() {
   const referencePrice = manualPrice ?? settings.lastAutomaticReference[referenceFuel];
   const fuelLabel = FUEL_OPTIONS.find((o) => o.value === referenceFuel)?.label ?? "";
   const costPerKm = referencePrice !== undefined ? referencePrice / draft.consumptionKmPerLiter : null;
-  const consumptionChanged = draft.consumptionKmPerLiter !== CONSUMPTION_SLIDER.default;
+  const costTooltip =
+    costPerKm !== null && referencePrice !== undefined
+      ? `calcolato da €${formatPrice(referencePrice)}/L (${manualPrice !== undefined ? "riferimento manuale" : "ultimo riferimento automatico"} ${fuelLabel}) ÷ ${decimals[1].format(draft.consumptionKmPerLiter)} km/L`
+      : undefined;
+  const consumptionChanged =draft.consumptionKmPerLiter !== CONSUMPTION_SLIDER.default;
 
   return (
     <div className="flex-1 w-full bg-surface pt-24 pb-28 px-margin max-w-md mx-auto flex flex-col gap-space-lg">
@@ -179,26 +183,38 @@ export function SettingsScreen() {
                 <label htmlFor="consumption-slider" className="text-label-sm font-label-sm font-semibold text-on-surface">
                   Consumo medio misto
                 </label>
-                <output
-                  htmlFor="consumption-slider"
-                  data-testid="consumption-pill"
-                  className="self-start inline-flex items-baseline gap-1 rounded-full bg-primary-fixed/30 text-on-primary-fixed-variant px-space-md py-space-xs tabular-nums"
-                >
-                  <span className="text-label-lg font-label-lg font-bold">{decimals[1].format(draft.consumptionKmPerLiter)}</span>
-                  {" "}
-                  <span className="text-label-sm font-label-sm">km/L</span>
-                </output>
+                <div className="flex items-center gap-space-sm">
+                  <output
+                    htmlFor="consumption-slider"
+                    data-testid="consumption-pill"
+                    className="inline-flex items-baseline gap-1 rounded-full bg-primary-fixed/30 text-on-primary-fixed-variant px-space-md py-space-xs tabular-nums"
+                  >
+                    <span className="text-label-lg font-label-lg font-bold">{decimals[1].format(draft.consumptionKmPerLiter)}</span>
+                    {" "}
+                    <span className="text-label-sm font-label-sm">km/L</span>
+                  </output>
+                  {consumptionChanged && (
+                    <button
+                      type="button"
+                      onClick={() => patch({ consumptionKmPerLiter: CONSUMPTION_SLIDER.default })}
+                      className="flex items-center gap-1 text-label-md font-label-md text-on-primary-fixed-variant hover:underline"
+                    >
+                      <RestoreIcon className="w-4 h-4" />
+                      Ripristina
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="text-right flex flex-col">
                 <span className="text-label-sm font-label-sm text-on-surface-variant">Costo / km</span>
-                <span data-testid="cost-per-km" className="text-label-lg font-label-lg font-bold text-on-primary-fixed-variant tabular-nums">
+                <span
+                  data-testid="cost-per-km"
+                  title={costTooltip}
+                  className={`text-label-lg font-label-lg font-bold text-on-primary-fixed-variant tabular-nums ${costTooltip ? "cursor-help" : ""}`}
+                >
                   {costPerKm !== null ? `~€${decimals[2].format(costPerKm)}/km` : "—"}
                 </span>
-                <span className="text-label-sm font-label-sm text-on-surface-variant">
-                  {costPerKm === null
-                    ? "nessun prezzo di riferimento noto"
-                    : `${manualPrice !== undefined ? "riferimento manuale" : "ultimo riferimento automatico"} ${fuelLabel} €${formatPrice(referencePrice ?? 0)}/L`}
-                </span>
+                {costPerKm === null && <span className="text-label-sm font-label-sm text-on-surface-variant">nessun prezzo di riferimento noto</span>}
               </div>
             </div>
             <input
@@ -211,18 +227,11 @@ export function SettingsScreen() {
               onChange={(event) => patch({ consumptionKmPerLiter: Number(event.target.value) })}
               className="w-full accent-primary"
             />
-            <div className="flex items-center justify-between gap-space-md">
-              <p className="text-label-sm font-label-sm text-on-surface-variant">8 Sport · 15 Medio · 30 Eco</p>
-              {consumptionChanged && (
-                <button
-                  type="button"
-                  onClick={() => patch({ consumptionKmPerLiter: CONSUMPTION_SLIDER.default })}
-                  className="flex items-center gap-1 text-label-md font-label-md text-on-primary-fixed-variant hover:underline"
-                >
-                  <RestoreIcon className="w-4 h-4" />
-                  Ripristina
-                </button>
-              )}
+            {/* Tre tacche distribuite sotto lo slider (come nel mockup 5). */}
+            <div className="flex justify-between text-label-sm font-label-sm text-on-surface-variant">
+              <span>8 Sport</span>
+              <span>15 Medio</span>
+              <span>30 Eco</span>
             </div>
           </div>
         </Accordion>
@@ -352,6 +361,32 @@ export function SettingsScreen() {
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="flex flex-col gap-space-sm">
+            <div className="flex items-center justify-between">
+              <label htmlFor="default-detour" className="text-label-sm font-label-sm font-semibold text-on-surface">
+                Deviazione massima predefinita
+              </label>
+              <output
+                htmlFor="default-detour"
+                data-testid="default-detour-pill"
+                className="rounded-full bg-secondary/10 text-on-secondary-fixed-variant px-space-md py-space-xs text-label-lg font-label-lg tabular-nums"
+              >
+                {draft.defaultMaxDetourKm} km
+              </output>
+            </div>
+            <input
+              id="default-detour"
+              type="range"
+              {...DETOUR_RANGE}
+              value={draft.defaultMaxDetourKm}
+              onChange={(event) => patch({ defaultMaxDetourKm: Number(event.target.value) })}
+              className="w-full accent-primary"
+            />
+            <p className="text-body-sm font-body-sm text-on-surface-variant">
+              Km extra totali (andata e ritorno) rispetto al percorso diretto. Precompila lo slider della ricerca; lo puoi cambiare per ogni ricerca.
+            </p>
           </div>
 
           <div className="flex flex-col gap-space-md">
