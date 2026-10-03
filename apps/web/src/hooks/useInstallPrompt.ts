@@ -49,6 +49,12 @@ export const isStandalone = (): boolean =>
   (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches) ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
+/** iPhone, iPod e iPad (anche iPadOS 13+, che si presenta come un Mac ma ha lo schermo tattile). */
+export function isIos(): boolean {
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return true;
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
 export interface InstallPrompt {
   /** Il browser ha offerto l'installazione e il banner non è ancora stato mostrato/chiuso in questa sessione. */
   canInstall: boolean;
@@ -56,6 +62,21 @@ export interface InstallPrompt {
   install: () => Promise<"accepted" | "dismissed" | null>;
   /** «Non ora»: nasconde il banner per il resto della sessione. */
   dismiss: () => void;
+}
+
+/**
+ * Guida per iOS: Safari non emette `beforeinstallprompt` e non ha un pulsante «Installa», quindi si spiega il percorso
+ * manuale (Condividi → Aggiungi alla schermata Home). Una volta per sessione (stessa chiave del banner di installazione,
+ * che su iOS non compare mai) e solo se l'app non è già aperta come app installata.
+ */
+export function useIosInstallHint(): { show: boolean; dismiss: () => void } {
+  const [done, setDone] = useState(readDone);
+  const [installed] = useState(isStandalone);
+  const dismiss = useCallback(() => {
+    markDone();
+    setDone(true);
+  }, []);
+  return { show: isIos() && !installed && !done, dismiss };
 }
 
 /**

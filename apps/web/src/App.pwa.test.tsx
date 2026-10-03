@@ -86,6 +86,26 @@ describe("App — banner di installazione", () => {
   });
 });
 
+describe("App — guida di installazione per iOS", () => {
+  const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
+  it("su iPhone la Home mostra la guida (Condividi → Aggiungi alla schermata Home) in cima, prima del form", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(IPHONE);
+    renderApp("/");
+    const hint = screen.getByRole("complementary", { name: "Come installare l'app" });
+    expect(hint).toHaveTextContent("Aggiungi alla schermata Home");
+    expect(hint.closest("main")!.classList.contains("hidden")).toBe(false);
+    const form = screen.getByRole("heading", { name: /Pianifica viaggio/ }).closest("form")!;
+    expect(hint.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sulle altre schermate resta nascosta (è nella Home)", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(IPHONE);
+    renderApp("/settings");
+    expect(screen.getByRole("complementary", { name: "Come installare l'app" }).closest("main")!.classList.contains("hidden")).toBe(true);
+  });
+});
+
 describe("App — landmark `main` su ogni schermata (accessibilità, audit Lighthouse)", () => {
   it("Impostazioni ha un proprio <main>", () => {
     renderApp("/settings");

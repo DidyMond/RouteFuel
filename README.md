@@ -157,14 +157,14 @@ Il frontend è una build statica: su Vercel va importato il repository con quest
 | Environment Variables (Production **e** Preview) | `VITE_MAPBOX_PUBLIC_TOKEN` (token pubblico, con il dominio Vercel tra le restrizioni URL su Mapbox); `VITE_API_BASE_URL` (indirizzo **HTTPS** dell'API: senza, l'app chiama `localhost:3001` e la ricerca non funziona) |
 | Deployment Protection → Vercel Authentication | disattivata per il test: con il login attivo il telefono non vede l'app e il manifest viene rifiutato (la PWA non si installa) |
 
-Le variabili `VITE_*` si leggono **in fase di build**: dopo ogni modifica serve un nuovo deploy. L'API deve ammettere l'origine del frontend (`CORS_ORIGIN` = dominio Vercel). `apps/web/vercel.json` contiene già il rewrite SPA e le intestazioni di cache. Su iPhone l'installazione è manuale: Safari → Condividi → «Aggiungi alla schermata Home» (iOS non emette `beforeinstallprompt`, quindi il banner non compare).
+Le variabili `VITE_*` si leggono **in fase di build**: dopo ogni modifica serve un nuovo deploy. L'API deve ammettere l'origine del frontend (`CORS_ORIGIN` = dominio Vercel). `apps/web/vercel.json` contiene già il rewrite SPA e le intestazioni di cache. Su iPhone l'installazione è manuale: Safari → Condividi → «Aggiungi alla schermata Home» (iOS non emette `beforeinstallprompt`: al posto del pulsante «Installa» l'app mostra una breve guida con questi passaggi).
 
 ## Test
 
 | Comando | Cosa esegue | Richiede |
 |---|---|---|
-| `pnpm test` | 152 test di `packages/core` + 218 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 349 di `apps/web` | niente: zero rete, zero database |
-| `pnpm --filter @routefuel/web test` | Solo i 349 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
+| `pnpm test` | 152 test di `packages/core` + 218 di `apps/api` (provider, prezzi live, ricerca, kill switch, rate limit, rotte HTTP) + 364 di `apps/web` | niente: zero rete, zero database |
+| `pnpm --filter @routefuel/web test` | Solo i 364 test del frontend (ordinamento e filtri, deep-link, anti-sovrapposizione dei pin, schermata Risultati, banner, rotte). La mappa reale (WebGL) non gira in jsdom ed è sostituita da uno stub | niente |
 | `pnpm test:db` | 18 test di integrazione su PostgreSQL/PostGIS reale (corridoio, freschezza dei prezzi, mediana nazionale, contatore, aggiornamento prezzi live) | `docker compose up -d`, `pnpm db:migrate`, `pnpm ingest` |
 | `pnpm typecheck` | type-check di tutti i pacchetti (test inclusi) | niente |
 

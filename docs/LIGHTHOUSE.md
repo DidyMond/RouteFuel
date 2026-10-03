@@ -66,4 +66,4 @@ Eseguita con `apps/web/scripts/audit/pwa-browser-check.mjs` su Edge, build di pr
 
 Note del metodo: l'emulazione offline di Chromium non blocca le richieste fatte dal service worker (va applicata anche al suo target, come fa lo script) e, in headless, non aggiorna `navigator.onLine` (lo script lo forza per provare i messaggi); con un Chrome normale e la rete spenta `navigator.onLine` diventa `false` da solo.
 
-**Non verificato:** installazione su Safari/iOS e su un telefono reale (nessun dispositivo disponibile): vedi OPEN_QUESTIONS M5·3 per la prova manuale.
+**Provato dal PO (03/10/2026):** installazione su iPhone (Safari → Aggiungi alla schermata Home) e apertura offline della shell, sull'anteprima Vercel. Su iOS la Home mostra la guida di installazione (`ios-hint.png`, user agent iPhone). **Non provato:** Android.
