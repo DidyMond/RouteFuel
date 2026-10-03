@@ -144,6 +144,21 @@ Poi, in Chrome o Edge su `http://localhost:4173` (`localhost` conta come origine
 
 Note: le chiamate all'API usano `VITE_API_BASE_URL` **al momento della build** (la regola «mai in cache» ne usa l'origine): se l'API non è su `http://localhost:3001`, imposta la variabile prima di `build` (es. `VITE_API_BASE_URL=http://localhost:3011 pnpm --filter @routefuel/web build`). Il token pubblico di Mapbox è ristretto per URL (`localhost:5173`): sulla porta 4173 la mappa non si disegna (l'elenco sì). Le icone sono generate da `assets/logo.svg` (`pnpm --filter @routefuel/web generate:icons`). Audit Lighthouse e prova offline nel browser: [`docs/LIGHTHOUSE.md`](docs/LIGHTHOUSE.md).
 
+### Deploy del frontend su Vercel (per provare l'installazione su telefono)
+
+Il frontend è una build statica: su Vercel va importato il repository con queste impostazioni (Project Settings):
+
+| Dove | Valore |
+|---|---|
+| Build and Deployment → Framework Preset | Vite |
+| Root Directory | `apps/web` (con «Include files outside the root directory» attivo: il frontend usa `packages/core` e `packages/shared`) |
+| Build Command / Output Directory | `pnpm build` / `dist` |
+| Node.js Version | 24.x |
+| Environment Variables (Production **e** Preview) | `VITE_MAPBOX_PUBLIC_TOKEN` (token pubblico, con il dominio Vercel tra le restrizioni URL su Mapbox); `VITE_API_BASE_URL` (indirizzo **HTTPS** dell'API: senza, l'app chiama `localhost:3001` e la ricerca non funziona) |
+| Deployment Protection → Vercel Authentication | disattivata per il test: con il login attivo il telefono non vede l'app e il manifest viene rifiutato (la PWA non si installa) |
+
+Le variabili `VITE_*` si leggono **in fase di build**: dopo ogni modifica serve un nuovo deploy. L'API deve ammettere l'origine del frontend (`CORS_ORIGIN` = dominio Vercel). `apps/web/vercel.json` contiene già il rewrite SPA e le intestazioni di cache. Su iPhone l'installazione è manuale: Safari → Condividi → «Aggiungi alla schermata Home» (iOS non emette `beforeinstallprompt`, quindi il banner non compare).
+
 ## Test
 
 | Comando | Cosa esegue | Richiede |
