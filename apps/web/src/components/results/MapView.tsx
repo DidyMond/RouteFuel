@@ -1,4 +1,6 @@
 import { lazy, Suspense, useState } from "react";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+import { OFFLINE_MAP_DETAIL, OFFLINE_MAP_TITLE } from "../../lib/connectivity";
 import { getMapboxToken } from "../../lib/env";
 import { RouteIcon } from "../icons";
 import type { MapCanvasProps } from "./MapCanvas";
@@ -25,6 +27,10 @@ function MapPlaceholder({ title, detail }: { title: string; detail?: string }) {
 export function MapView(props: MapViewProps) {
   const token = getMapboxToken();
   const [unavailable, setUnavailable] = useState<string | null>(null);
+  const online = useOnlineStatus();
+
+  // Senza rete la mappa (tile e stile Mapbox) non c'è e non si mette in cache: l'elenco già caricato resta visibile.
+  if (!online) return <MapPlaceholder title={OFFLINE_MAP_TITLE} detail={OFFLINE_MAP_DETAIL} />;
 
   if (!token) {
     return (

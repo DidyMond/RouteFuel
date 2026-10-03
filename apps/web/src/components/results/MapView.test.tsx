@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Il vero MapCanvas richiede WebGL: si verifica solo che MapView lo carichi (lazy) quando c'è il token.
@@ -36,5 +36,26 @@ describe("MapView", () => {
     vi.stubEnv("VITE_MAPBOX_PUBLIC_TOKEN", "pk.test");
     render(<MapView {...props} />);
     expect(await screen.findByTestId("canvas-stub")).toHaveTextContent("pk.test");
+  });
+
+  it("offline mostra «Mappa non disponibile offline» (anche col token) e non carica la mappa; l'elenco già caricato resta", () => {
+    vi.stubEnv("VITE_MAPBOX_PUBLIC_TOKEN", "pk.test");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    render(<MapView {...props} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Mappa non disponibile offline");
+    expect(screen.getByRole("status")).toHaveTextContent("L'elenco delle stazioni già caricato resta visibile");
+    expect(screen.queryByTestId("canvas-stub")).not.toBeInTheDocument();
+    vi.restoreAllMocks();
+  });
+
+  it("al ritorno della rete la mappa si carica", async () => {
+    vi.stubEnv("VITE_MAPBOX_PUBLIC_TOKEN", "pk.test");
+    const spy = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    render(<MapView {...props} />);
+    expect(screen.getByRole("status")).toHaveTextContent("offline");
+    spy.mockReturnValue(true);
+    act(() => void window.dispatchEvent(new Event("online")));
+    expect(await screen.findByTestId("canvas-stub")).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 });

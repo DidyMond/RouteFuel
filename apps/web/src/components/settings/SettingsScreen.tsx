@@ -111,7 +111,7 @@ export function SettingsScreen() {
   const consumptionChanged =draft.consumptionKmPerLiter !== CONSUMPTION_SLIDER.default;
 
   return (
-    <div className="flex-1 w-full bg-surface pt-24 pb-28 px-margin max-w-md mx-auto flex flex-col gap-space-lg">
+    <main className="flex-1 w-full bg-surface pt-24 pb-28 px-margin max-w-md mx-auto flex flex-col gap-space-lg">
       <header className="flex flex-col gap-space-sm">
         <span className="self-start inline-flex items-center gap-1.5 h-[26px] px-space-md rounded-full bg-surface-container-high text-on-surface-variant text-label-sm font-label-sm uppercase">
           <SlidersIcon className="w-3.5 h-3.5" />
@@ -463,6 +463,6 @@ export function SettingsScreen() {
           Ripristina Predefiniti
         </button>
       </div>
-    </div>
+    </main>
   );
 }
