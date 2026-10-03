@@ -1,6 +1,7 @@
 import type { StationDetailResponse } from "@routefuel/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useNotice } from "../../hooks/useNotice";
 import { useStationDetail } from "../../hooks/useStationDetail";
 import { isStationSaved, toggleSavedStation } from "../../lib/bookmarks";
 import { formatKm, formatPrice } from "../../lib/format";
@@ -14,19 +15,6 @@ import { NavigateBar } from "./NavigateBar";
 import { PriceMatrix } from "./PriceMatrix";
 import { StationHeader } from "./StationHeader";
 import { fullAddress, StationMeta } from "./StationMeta";
-
-/** Avviso passeggero («Stazione salvata», «Link copiato»…): sparisce da solo e viene letto dai lettori di schermo. */
-function useNotice(): [string | null, (message: string) => void] {
-  const [notice, setNotice] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const show = useCallback((message: string) => {
-    setNotice(message);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setNotice(null), 2500);
-  }, []);
-  return [notice, show];
-}
 
 function LoadingBody() {
   return (

@@ -110,3 +110,44 @@ describe("MapboxRoutingProvider", () => {
     await expect(provider.getRoute(Array.from({ length: 26 }, () => A))).rejects.toThrow(RangeError);
   });
 });
+
+describe("MapboxRoutingProvider — esclusioni combinate (motorway, toll, ferry)", () => {
+  const exclude = async (options: Parameters<MapboxRoutingProvider["getRoute"]>[1]) => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(okBody));
+    await new MapboxRoutingProvider({ token: TOKEN, fetchImpl }).getRoute([A, B], options);
+    return new URL(fetchImpl.mock.calls[0]![0] as string).searchParams.get("exclude");
+  };
+
+  it("pedaggi → exclude=toll; traghetti → exclude=ferry", async () => {
+    expect(await exclude({ avoidTolls: true })).toBe("toll");
+    expect(await exclude({ avoidFerries: true })).toBe("ferry");
+  });
+
+  it("più esclusioni sono separate da virgola, sempre nello stesso ordine (motorway, toll, ferry)", async () => {
+    expect(await exclude({ avoidMotorway: true, avoidTolls: true })).toBe("motorway,toll");
+    expect(await exclude({ avoidFerries: true, avoidTolls: true })).toBe("toll,ferry");
+    expect(await exclude({ avoidFerries: true, avoidTolls: true, avoidMotorway: true })).toBe("motorway,toll,ferry");
+  });
+
+  it("tutto a false: nessun exclude", async () => {
+    expect(await exclude({ avoidMotorway: false, avoidTolls: false, avoidFerries: false })).toBeNull();
+  });
+});
+
+describe("MapboxRoutingProvider — «Evita autostrada»", () => {
+  it("con avoidMotorway aggiunge exclude=motorway", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(okBody));
+    await new MapboxRoutingProvider({ token: TOKEN, fetchImpl }).getRoute([A, S, B], { avoidMotorway: true });
+    const url = new URL(fetchImpl.mock.calls[0]![0] as string);
+    expect(url.searchParams.get("exclude")).toBe("motorway");
+    expect(url.searchParams.get("geometries")).toBe("geojson");
+  });
+
+  it("senza avoidMotorway (o a false) non c'è alcun exclude", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => jsonResponse(okBody));
+    const provider = new MapboxRoutingProvider({ token: TOKEN, fetchImpl });
+    await provider.getRoute([A, B]);
+    await provider.getRoute([A, B], { avoidMotorway: false });
+    for (const call of fetchImpl.mock.calls) expect(new URL(call[0] as string).searchParams.has("exclude")).toBe(false);
+  });
+});

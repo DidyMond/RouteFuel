@@ -4,13 +4,15 @@ import type { SearchState } from "../../hooks/useSearch";
 import { useStopRoute } from "../../hooks/useStopRoute";
 import { formatPrice } from "../../lib/format";
 import { launchNavigation } from "../../lib/navigation";
+import { describeExclusions, type RouteExclusions } from "../../lib/routeOptions";
 import { applyFilters, bestStationId, DEFAULT_SORT, fuelModeLabel, referenceLevelText, type SortMode } from "../../lib/stationView";
-import { CheckIcon, InfoIcon, RouteIcon, SavingsIcon, SpinnerIcon } from "../icons";
+import { CheckIcon, InfoIcon, RouteIcon, SavingsIcon, SlidersIcon, SpinnerIcon } from "../icons";
 import type { MapStation } from "./MapCanvas";
 import { MapView } from "./MapView";
 import { NavigateSheet } from "./NavigateSheet";
 import { PricesBanner } from "./PricesBanner";
 import { ResultCard } from "./ResultCard";
+import { RouteOptionsSheet } from "./RouteOptionsSheet";
 import { TelemetryCapsule } from "./TelemetryCapsule";
 
 type SuccessState = Extract<SearchState, { status: "success" }>;
@@ -49,7 +51,7 @@ function Chip({
       className={`flex items-center gap-1.5 rounded-full shrink-0 whitespace-nowrap transition-colors disabled:cursor-not-allowed ${
         small ? "h-8 px-space-md text-label-sm font-label-sm" : "h-9 px-space-lg text-label-md font-label-md"
       } ${active ? "bg-primary text-on-primary shadow-sm" : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"} ${
-        disabled ? "opacity-80" : ""
+        disabled ? (active ? "opacity-80" : "opacity-50") : ""
       }`}
     >
       {children}
@@ -76,7 +78,22 @@ function RefinementNotice({ refinement }: { refinement: RefinementInfo }) {
  * Screen 2 — Risultati & Mappa. Mappa sopra (40% dell'altezza) e bottom sheet con filtri e schede sotto; su schermi
  * larghi il foglio diventa una barra laterale sopra la mappa. Ordinamento e filtri sono solo client-side.
  */
-export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; onOpenStation: (result: StationResult) => void }) {
+export function ResultsScreen({
+  state,
+  onOpenStation,
+  routeDefaults,
+  onApplyRouteOptions,
+  searching = false,
+}: {
+  state: SuccessState;
+  onOpenStation: (result: StationResult) => void;
+  /** Default delle Impostazioni per le opzioni percorso («Reimposta» nel foglio). */
+  routeDefaults: RouteExclusions;
+  /** «Applica» nel foglio Opzioni percorso: rilancia la ricerca con lo stesso A/B e le nuove esclusioni. */
+  onApplyRouteOptions: (exclusions: RouteExclusions) => void;
+  /** Una ricerca è in corso (rilanciata da qui): si resta sui risultati precedenti finché arrivano i nuovi. */
+  searching?: boolean;
+}) {
   const { response, results, refinement, request, labels } = state;
 
   const [sort, setSort] = useState<SortMode>(DEFAULT_SORT);
@@ -86,6 +103,7 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [navigating, setNavigating] = useState<StationResult | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [shown, setShown] = useState(INITIAL_CARDS);
   const selectionFromMap = useRef(false);
 
@@ -98,7 +116,14 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
     setShown(INITIAL_CARDS);
   }, [response.searchId, request.onlySelf]);
 
-  const visible = useMemo(() => applyFilters(results, { sort, onlySelf, motorwayOnly }), [results, sort, onlySelf, motorwayOnly]);
+  // Con «Evita autostrada» la pill «Autostrada» non ha senso (nessun percorso usa l'autostrada): resta spenta. Nessun
+  // auto-disable per «Evita pedaggi»: il filtro «Tipo impianto» non dipende dal tracciato.
+  const motorwayFilter = motorwayOnly && !request.avoidMotorway;
+  useEffect(() => {
+    if (request.avoidMotorway) setMotorwayOnly(false);
+  }, [request.avoidMotorway]);
+
+  const visible = useMemo(() => applyFilters(results, { sort, onlySelf, motorwayOnly: motorwayFilter }), [results, sort, onlySelf, motorwayFilter]);
   const bestId = useMemo(() => bestStationId(visible), [visible]);
   // Percorso A→stazione→B della stazione selezionata; resta null se il routing non è disponibile.
   const stopRoute = useStopRoute(response.searchId, selectedId);
@@ -161,7 +186,9 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
     setShown(INITIAL_CARDS);
   };
 
-  const hasFilters = motorwayOnly || (onlySelf && !request.onlySelf);
+  const hasFilters = motorwayFilter || (onlySelf && !request.onlySelf);
+  const exclusions: RouteExclusions = { avoidMotorway: request.avoidMotorway, avoidTolls: request.avoidTolls, avoidFerries: request.avoidFerries };
+  const exclusionsText = describeExclusions(exclusions);
 
   return (
     <div className="fixed inset-x-0 top-[calc(72px+env(safe-area-inset-top,0px))] bottom-0 pb-28 flex flex-col md:block">
@@ -226,12 +253,42 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
                 {onlySelf && <CheckIcon className="w-3.5 h-3.5" />}
                 Solo Self
               </Chip>
-              <Chip small active={motorwayOnly} onClick={() => setMotorwayOnly((value) => !value)}>
-                {motorwayOnly && <CheckIcon className="w-3.5 h-3.5" />}
+              <Chip
+                small
+                active={motorwayFilter}
+                disabled={request.avoidMotorway}
+                title={request.avoidMotorway ? "Non disponibile con Evita autostrada" : undefined}
+                onClick={() => setMotorwayOnly((value) => !value)}
+              >
+                {motorwayFilter && <CheckIcon className="w-3.5 h-3.5" />}
                 Autostrada
               </Chip>
             </div>
             <RefinementNotice refinement={refinement} />
+            {searching && (
+              <p role="status" className="flex items-center gap-space-sm text-body-sm font-body-sm text-on-surface-variant">
+                <SpinnerIcon className="w-4 h-4 text-secondary" />
+                Ricalcolo con le nuove opzioni…
+              </p>
+            )}
+            <button
+              type="button"
+              data-testid="route-options-chip"
+              aria-haspopup="dialog"
+              disabled={searching}
+              onClick={() => setOptionsOpen(true)}
+              title={
+                exclusionsText
+                  ? "Le deviazioni sono misurate contro il percorso diretto con le stesse opzioni (il pedaggio non rientra nel calcolo)"
+                  : "Evita autostrade, pedaggi o traghetti"
+              }
+              className={`self-start flex items-center gap-1.5 h-8 px-space-md rounded-full text-label-md font-label-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                exclusionsText ? "bg-secondary/10 text-on-secondary-fixed-variant" : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <SlidersIcon className="w-4 h-4" />
+              Opzioni percorso{exclusionsText ? ` · ${exclusionsText}` : ""}
+            </button>
             <p data-testid="reference-price" className="text-body-sm font-body-sm text-on-surface-variant tabular-nums">
               Prezzo di riferimento €{formatPrice(response.referencePrice.value)}/L ({referenceLevelText(response.referencePrice.level, response.referencePrice.sampleSize)})
             </p>
@@ -283,6 +340,18 @@ export function ResultsScreen({ state, onOpenStation }: { state: SuccessState; o
 
         <PricesBanner livePrices={response.livePrices} dailyFileAt={response.pricesUpdatedAt} />
       </section>
+
+      {optionsOpen && (
+        <RouteOptionsSheet
+          current={exclusions}
+          defaults={routeDefaults}
+          onApply={(next) => {
+            setOptionsOpen(false);
+            onApplyRouteOptions(next);
+          }}
+          onClose={() => setOptionsOpen(false)}
+        />
+      )}
 
       {navigating && (
         <NavigateSheet

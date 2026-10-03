@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AppError, BudgetExhaustedError, ProviderError } from "../../src/errors";
 import type { BudgetGate, BudgetStatus } from "../../src/providers/routing/DirectionsBudget";
 import { MockRoutingProvider } from "../../src/providers/routing/MockRoutingProvider";
-import type { RouteResult, RoutingProvider } from "../../src/providers/routing/RoutingProvider";
+import type { RouteOptions, RouteResult, RoutingProvider } from "../../src/providers/routing/RoutingProvider";
 import { RESULT_LIMIT, REFINE_EXTRA_CALLS_CAP, REFINE_TOP_N, SearchService } from "../../src/search/SearchService";
 import { type SearchSession, SearchSessionStore } from "../../src/search/SearchSessionStore";
 import { InMemoryStationRepository, row } from "../helpers/inMemoryStationRepository";
@@ -25,6 +25,9 @@ const request: SearchRequest = {
   valueOfTimePerMinute: 0.15,
   onlySelf: true,
   maxPriceAgeHours: 72,
+  avoidMotorway: false,
+  avoidTolls: false,
+  avoidFerries: false,
 };
 
 // Tre stazioni sul percorso (≤ 0.5 km) → livello 1 di P_avg: mediana = 1.82
@@ -56,12 +59,16 @@ class ScriptedRouting implements RoutingProvider {
   viaCalls = 0;
   constructor(private readonly onVia: (viaStation: { lon: number; lat: number }) => Promise<RouteResult | null>) {}
 
-  async getRoute(waypoints: Parameters<RoutingProvider["getRoute"]>[0]) {
+  /** Opzioni ricevute da ogni richiesta (diretto e vie), per le asserzioni. */
+  readonly receivedOptions: RouteOptions[] = [];
+
+  async getRoute(waypoints: Parameters<RoutingProvider["getRoute"]>[0], options?: RouteOptions) {
+    this.receivedOptions.push({ ...options });
     if (waypoints.length === 3) {
       this.viaCalls += 1;
       return this.onVia(waypoints[1]!);
     }
-    return this.inner.getRoute(waypoints);
+    return this.inner.getRoute(waypoints, options);
   }
 }
 
@@ -870,5 +877,134 @@ describe("SearchService.getStationDetail — dettaglio stazione (Screen 3)", () 
     });
     const search = await service.search(request);
     await expect(service.getStationDetail(search.searchId, 999999)).rejects.toMatchObject({ code: "NOT_FOUND", httpStatus: 404 });
+  });
+});
+
+describe("SearchService — «Evita autostrada» (avoidMotorway)", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+  const avoid = { ...request, avoidMotorway: true };
+
+  it("passa exclude=motorway al percorso diretto e a tutte le verifiche (stesso tipo di percorso)", async () => {
+    const { service, routing } = buildService(stations());
+    const { searchId } = await service.search(avoid);
+    await service.waitForRefinement(searchId);
+
+    const mock = routing as MockRoutingProvider;
+    expect(mock.calls.length).toBeGreaterThan(1);
+    expect(mock.callOptions).toHaveLength(mock.calls.length);
+    expect(mock.callOptions.every((o) => o.avoidMotorway === true)).toBe(true); // diretto (2 waypoint) e vie (3 waypoint)
+    expect(mock.calls.some((c) => c.length === 2)).toBe(true);
+    expect(mock.calls.some((c) => c.length === 3)).toBe(true);
+  });
+
+  it("senza avoidMotorway nessuna richiesta esclude l'autostrada", async () => {
+    const { service, routing } = buildService(stations());
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    expect((routing as MockRoutingProvider).callOptions.every((o) => !o.avoidMotorway)).toBe(true);
+  });
+
+  it("anche il percorso con sosta e il dettaglio stazione usano lo stesso tipo di percorso della ricerca", async () => {
+    const { service, routing } = buildService(stations(), { budget: "soft_limit" });
+    const { searchId } = await service.search(avoid);
+    const mock = routing as MockRoutingProvider;
+    mock.calls.length = 0;
+    mock.callOptions.length = 0;
+
+    await service.getStationRoute(searchId, 5);
+    await service.getStationDetail(searchId, 5);
+    expect(mock.calls.filter((c) => c.length === 3)).toHaveLength(2);
+    expect(mock.callOptions.every((o) => o.avoidMotorway === true)).toBe(true);
+  });
+
+  it("conserva il flag nello stato della ricerca (sessione) e la deviazione resta quella calcolata contro il diretto dello stesso tipo", async () => {
+    const direct = await new MockRoutingProvider().getRoute([ORIGIN, DESTINATION]);
+    const routing = new ScriptedRouting(async () => ({ distanceKm: direct!.distanceKm + 3, durationMinutes: direct!.durationMinutes + 4, geometry: [] }));
+    const { service } = buildService(stations(), { routing });
+    const { searchId } = await service.search(avoid);
+    await service.waitForRefinement(searchId);
+    expect(routing.receivedOptions.length).toBeGreaterThan(1);
+    expect(routing.receivedOptions.every((o) => o.avoidMotorway === true)).toBe(true);
+    const refined = service.getRefinement(searchId)!.results.find((r) => r.station.id === 5)!;
+    expect(refined.detourKm).toBeCloseTo(3, 1); // via − diretto, entrambi senza autostrada
+  });
+});
+
+describe("SearchService — insieme di esclusioni (autostrada, pedaggi, traghetti)", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+
+  it("pedaggi e traghetti arrivano a diretto, verifiche, percorso con sosta e dettaglio: tutti con lo stesso insieme", async () => {
+    const { service, routing } = buildService(stations());
+    const mock = routing as MockRoutingProvider;
+    const { searchId } = await service.search({ ...request, avoidTolls: true, avoidFerries: true });
+    await service.waitForRefinement(searchId);
+    await service.getStationRoute(searchId, 5);
+    await service.getStationDetail(searchId, 5);
+    expect(mock.callOptions.length).toBeGreaterThan(3);
+    for (const options of mock.callOptions) expect(options).toEqual({ avoidMotorway: false, avoidTolls: true, avoidFerries: true });
+  });
+
+  it("la baseline della deviazione è sempre il diretto con lo stesso insieme (ogni combinazione, un'unica chiave per ricerca)", async () => {
+    for (const set of [{ avoidTolls: true }, { avoidMotorway: true, avoidTolls: true }, { avoidFerries: true }]) {
+      const { service, routing } = buildService(stations());
+      const mock = routing as MockRoutingProvider;
+      const { searchId } = await service.search({ ...request, ...set });
+      await service.waitForRefinement(searchId);
+      const distinct = new Set(mock.callOptions.map((o) => JSON.stringify(o)));
+      expect(distinct.size, JSON.stringify(set)).toBe(1); // diretto e vie: stesso insieme
+      expect(mock.calls.some((c) => c.length === 2)).toBe(true);
+      expect(mock.calls.some((c) => c.length === 3)).toBe(true);
+    }
+  });
+
+  it("senza esclusioni nessuna chiamata ne porta una", async () => {
+    const { service, routing } = buildService(stations());
+    const { searchId } = await service.search(request);
+    await service.waitForRefinement(searchId);
+    for (const options of (routing as MockRoutingProvider).callOptions) expect(options).toEqual({ avoidMotorway: false, avoidTolls: false, avoidFerries: false });
+  });
+});
+
+describe("SearchService — prezzo di riferimento manuale (referencePriceOverride)", () => {
+  const stations = () => [...onRoute(), row({ stationId: 5, lon: 9.5, lat: 45.012, price: 1.7 })];
+
+  it("sostituisce del tutto la cascata: valore e livello «manual», nessun blending", async () => {
+    const { service } = buildService(stations());
+    const response = await service.search({ ...request, referencePriceOverride: 2.5 });
+    expect(response.referencePrice).toEqual({ value: 2.5, level: "manual", sampleSize: 0 });
+    const station5 = response.results.find((r) => r.station.id === 5)!;
+    expect(station5.grossSavings).toBeCloseTo((2.5 - 1.7) * 45, 2);
+    await service.waitForRefinement(response.searchId);
+  });
+
+  it("il costo al km usa il riferimento manuale (C_km = P_avg / consumo)", async () => {
+    const { service } = buildService(stations());
+    const response = await service.search({ ...request, referencePriceOverride: 3 });
+    expect(response.costPerKm).toBeCloseTo(3 / 15, 4);
+    await service.waitForRefinement(response.searchId);
+  });
+
+  it("senza override resta la cascata automatica", async () => {
+    const { service } = buildService(stations());
+    const response = await service.search(request);
+    expect(response.referencePrice.level).not.toBe("manual");
+    await service.waitForRefinement(response.searchId);
+  });
+
+  it("con il riferimento manuale non serve avere abbastanza prezzi per calcolare la media: nessun NO_PRICE_DATA", async () => {
+    const { service } = buildService([], { national: null });
+    await expect(service.search(request)).rejects.toMatchObject({ code: "NO_PRICE_DATA" }); // automatico: errore
+    const response = await service.search({ ...request, referencePriceOverride: 2 });
+    expect(response.referencePrice.level).toBe("manual");
+    expect(response.results).toEqual([]);
+  });
+
+  it("il dettaglio stazione usa il riferimento manuale per il differenziale", async () => {
+    const { service } = buildService(stations(), { budget: "soft_limit" });
+    const { searchId } = await service.search({ ...request, referencePriceOverride: 2.5 });
+    const detail = await service.getStationDetail(searchId, 5);
+    expect(detail.referencePrice.level).toBe("manual");
+    expect(detail.impact.priceDifferencePerLiter).toBeCloseTo(1.7 - 2.5, 3);
+    expect(detail.impact.priceDifferencePercent).toBeCloseTo(((1.7 - 2.5) / 2.5) * 100, 1);
   });
 });

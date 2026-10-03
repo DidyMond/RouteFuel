@@ -2,7 +2,7 @@ import type { Coordinate } from "@routefuel/core";
 import type { LonLat } from "@routefuel/shared";
 import { z } from "zod";
 import { ProviderError } from "../../errors";
-import type { RouteResult, RoutingProvider } from "./RoutingProvider";
+import { routeExclusions, type RouteOptions, type RouteResult, type RoutingProvider } from "./RoutingProvider";
 
 const responseSchema = z.object({
   code: z.string(),
@@ -45,7 +45,7 @@ export class MapboxRoutingProvider implements RoutingProvider {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  async getRoute(waypoints: readonly LonLat[]): Promise<RouteResult | null> {
+  async getRoute(waypoints: readonly LonLat[], options: RouteOptions = {}): Promise<RouteResult | null> {
     if (waypoints.length < 2 || waypoints.length > 25) {
       throw new RangeError("Directions accetta da 2 a 25 waypoint");
     }
@@ -58,6 +58,9 @@ export class MapboxRoutingProvider implements RoutingProvider {
       steps: "false",
       access_token: this.token,
     });
+    // Directions accetta più valori separati da virgola (verificato: motorway, toll, ferry su mapbox/driving).
+    const exclusions = routeExclusions(options);
+    if (exclusions.length > 0) params.set("exclude", exclusions.join(","));
 
     let response: Response;
     try {

@@ -71,6 +71,20 @@ export interface SearchRequest {
   onlySelf: boolean;
   /** Prezzi comunicati da più di N ore sono esclusi dai risultati. */
   maxPriceAgeHours: number;
+  /**
+   * true = «Evita autostrada»: Directions con `exclude=motorway` sia per il percorso diretto sia per le verifiche. La
+   * deviazione si misura sempre contro il diretto dello stesso tipo (senza autostrada, in questo caso).
+   */
+  avoidMotorway: boolean;
+  /** true = «Evita pedaggi»: Directions con `exclude=toll`; stessa regola di baseline di `avoidMotorway`. Il pedaggio non entra in S_net. */
+  avoidTolls: boolean;
+  /** true = «Evita traghetti»: Directions con `exclude=ferry`; stessa regola di baseline di `avoidMotorway`. */
+  avoidFerries: boolean;
+  /**
+   * Prezzo di riferimento impostato dall'utente (€/L, per il carburante cercato). Se presente sostituisce del tutto la
+   * cascata di P_avg (livello `manual`); se assente si usa il calcolo automatico.
+   */
+  referencePriceOverride?: number;
 }
 
 /** 'proxy' = stima geometrica; 'routing' = verificata con il provider di routing. */
@@ -114,7 +128,8 @@ export interface StationResult {
   netSavings: number;
 }
 
-export type ReferencePriceLevel = "on_route" | "corridor" | "national";
+/** `manual` = prezzo di riferimento impostato dall'utente nelle Impostazioni (sostituisce la cascata automatica). */
+export type ReferencePriceLevel = "on_route" | "corridor" | "national" | "manual";
 
 export interface ReferencePriceInfo {
   value: number;

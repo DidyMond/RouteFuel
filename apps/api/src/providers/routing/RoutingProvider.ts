@@ -8,6 +8,25 @@ export interface RouteResult {
   geometry: Coordinate[];
 }
 
+/** Opzioni di una richiesta di percorso: l'insieme delle esclusioni (Directions `exclude`). */
+export interface RouteOptions {
+  /** Percorso senza autostrada (`exclude=motorway`). */
+  avoidMotorway?: boolean;
+  /** Percorso senza strade a pedaggio (`exclude=toll`). */
+  avoidTolls?: boolean;
+  /** Percorso senza traghetti (`exclude=ferry`). */
+  avoidFerries?: boolean;
+}
+
+/** Valori Directions `exclude` dell'insieme di opzioni, in ordine fisso (così la stessa combinazione ha sempre la stessa chiave). */
+export function routeExclusions(options?: RouteOptions): string[] {
+  const exclusions: string[] = [];
+  if (options?.avoidMotorway) exclusions.push("motorway");
+  if (options?.avoidTolls) exclusions.push("toll");
+  if (options?.avoidFerries) exclusions.push("ferry");
+  return exclusions;
+}
+
 /**
  * Astrae il motore di routing (RouteFuel non ne costruisce uno proprio).
  * Implementazioni: MapboxRoutingProvider (produzione), MockRoutingProvider (test/dev senza chiavi).
@@ -19,5 +38,5 @@ export interface RoutingProvider {
    * Restituisce null se non esiste un percorso; lancia un errore per problemi
    * di rete, credenziali o quota.
    */
-  getRoute(waypoints: readonly LonLat[]): Promise<RouteResult | null>;
+  getRoute(waypoints: readonly LonLat[], options?: RouteOptions): Promise<RouteResult | null>;
 }

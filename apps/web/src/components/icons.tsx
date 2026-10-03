@@ -181,3 +181,67 @@ export function PinIcon({ className = "" }: IconProps) {
     </svg>
   );
 }
+
+export function SettingsIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" />
+    </svg>
+  );
+}
+
+export function CarIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v1.5M17 19v1.5" />
+      <circle cx="7.5" cy="13.5" r="1" fill="currentColor" />
+      <circle cx="16.5" cy="13.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function SlidersIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+    </svg>
+  );
+}
+
+export function DatabaseIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <ellipse cx="12" cy="6" rx="7" ry="3" />
+      <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />
+    </svg>
+  );
+}
+
+export function ChevronDownIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** Strada con una barra: percorso senza autostrada. */
+export function RoadIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M9 3L4 21M15 3l5 18M12 4v3m0 4v3m0 4v2" />
+      <path d="M3 3l18 18" />
+    </svg>
+  );
+}
+
+export function RestoreIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`${base} ${className}`} viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <path d="M4 12a8 8 0 108-8H8M8 4L5 7l3 3" />
+    </svg>
+  );
+}

@@ -1,12 +1,15 @@
 import type { LonLat, SearchFuelType, SearchRequest } from "@routefuel/shared";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSettings } from "../hooks/useSettings";
 import type { SearchLabels } from "../hooks/useSearch";
 import { reverseGeocode } from "../lib/api";
 import { CONSUMPTION_RANGE, DETOUR_RANGE, LITERS_RANGE, SEARCH_DEFAULTS } from "../lib/defaults";
+import { referenceOverrideFor } from "../lib/settings";
 import { AddressInput, type Place } from "./AddressInput";
 import { FuelChips } from "./FuelChips";
 import { LocateIcon, SpinnerIcon, SwapIcon } from "./icons";
 import { Stepper } from "./Stepper";
+import { ToggleRow } from "./ToggleRow";
 
 interface SearchFormProps {
   onSubmit: (request: SearchRequest, labels: SearchLabels) => void;
@@ -21,22 +24,41 @@ interface Endpoint {
 const EMPTY_ENDPOINT: Endpoint = { text: "", place: null };
 
 export function SearchForm({ onSubmit, busy }: SearchFormProps) {
+  // I default vengono dalle Impostazioni salvate (profilo veicolo e consumi); l'algoritmo ne prende i parametri.
+  const { settings } = useSettings();
   const [origin, setOrigin] = useState<Endpoint>(EMPTY_ENDPOINT);
   const [destination, setDestination] = useState<Endpoint>(EMPTY_ENDPOINT);
   const [userLocation, setUserLocation] = useState<LonLat | undefined>();
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  const [fuelType, setFuelType] = useState<SearchFuelType>(SEARCH_DEFAULTS.fuelType);
-  const [liters, setLiters] = useState<number>(SEARCH_DEFAULTS.liters);
-  const [maxDetourKm, setMaxDetourKm] = useState<number>(SEARCH_DEFAULTS.maxDetourKm);
-  const [consumptionText, setConsumptionText] = useState(String(SEARCH_DEFAULTS.consumptionKmPerLiter));
-  const [onlySelf, setOnlySelf] = useState<boolean>(SEARCH_DEFAULTS.onlySelf);
+  const [fuelType, setFuelType] = useState<SearchFuelType>(settings.vehicle.defaultFuel);
+  const [liters, setLiters] = useState<number>(settings.vehicle.tankLiters);
+  const [maxDetourKm, setMaxDetourKm] = useState<number>(settings.defaultMaxDetourKm);
+  const [consumptionText, setConsumptionText] = useState(String(settings.consumptionKmPerLiter));
+  // «Solo Self» e «Evita autostrada» partono dai default delle Impostazioni e restano modificabili per ricerca.
+  const [onlySelf, setOnlySelf] = useState<boolean>(settings.onlySelf);
+  const [avoidMotorway, setAvoidMotorway] = useState<boolean>(settings.avoidMotorway);
 
   const consumption = Number(consumptionText.replace(",", "."));
   const consumptionValid =
     Number.isFinite(consumption) && consumption >= CONSUMPTION_RANGE.min && consumption <= CONSUMPTION_RANGE.max;
-  const consumptionModified = consumptionText !== String(SEARCH_DEFAULTS.consumptionKmPerLiter);
+  const consumptionModified = consumptionText !== String(settings.consumptionKmPerLiter);
+
+  // Quando le Impostazioni cambiano (salvataggio o ripristino) la ricerca successiva riparte dai nuovi default.
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setFuelType(settings.vehicle.defaultFuel);
+    setLiters(settings.vehicle.tankLiters);
+    setConsumptionText(String(settings.consumptionKmPerLiter));
+    setOnlySelf(settings.onlySelf);
+    setAvoidMotorway(settings.avoidMotorway);
+    setMaxDetourKm(settings.defaultMaxDetourKm);
+  }, [settings.vehicle.defaultFuel, settings.vehicle.tankLiters, settings.consumptionKmPerLiter, settings.onlySelf, settings.avoidMotorway, settings.defaultMaxDetourKm]);
   const ready = origin.place !== null && destination.place !== null && consumptionValid;
 
   const swap = () => {
@@ -79,6 +101,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!origin.place || !destination.place || !consumptionValid) return;
+    const referenceOverride = referenceOverrideFor(settings, fuelType);
     onSubmit(
       {
         origin: { lon: origin.place.lon, lat: origin.place.lat },
@@ -87,9 +110,15 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
         liters,
         maxDetourKm,
         consumptionKmPerLiter: consumption,
-        valueOfTimePerMinute: SEARCH_DEFAULTS.valueOfTimePerMinute,
+        valueOfTimePerMinute: settings.valueOfTimePerMinute,
         onlySelf,
-        maxPriceAgeHours: SEARCH_DEFAULTS.maxPriceAgeHours,
+        maxPriceAgeHours: settings.maxPriceAgeHours,
+        avoidMotorway,
+        // Pedaggi e traghetti non sono nel form: si cambiano dalle Opzioni percorso nei Risultati o dai default nelle Impostazioni.
+        avoidTolls: settings.avoidTolls,
+        avoidFerries: settings.avoidFerries,
+        // Prezzo di riferimento manuale (se impostato per questo carburante): sostituisce il calcolo automatico.
+        ...(referenceOverride !== undefined ? { referencePriceOverride: referenceOverride } : {}),
       },
       { origin: origin.place.label, destination: destination.place.label },
     );
@@ -191,7 +220,7 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
             {consumptionModified && (
               <button
                 type="button"
-                onClick={() => setConsumptionText(String(SEARCH_DEFAULTS.consumptionKmPerLiter))}
+                onClick={() => setConsumptionText(String(settings.consumptionKmPerLiter))}
                 className="text-label-md font-label-md text-on-primary-fixed-variant hover:underline"
               >
                 Ripristina
@@ -218,25 +247,14 @@ export function SearchForm({ onSubmit, busy }: SearchFormProps) {
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-space-md">
-        <div>
-          <span id="only-self-label" className="text-label-sm font-label-sm font-semibold text-on-surface">
-            Solo Self
-          </span>
-          <p className="text-body-sm font-body-sm text-on-surface-variant">Se disattivato include anche le stazioni solo servito.</p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={onlySelf}
-          aria-labelledby="only-self-label"
-          onClick={() => setOnlySelf((value) => !value)}
-          className={`relative w-12 h-7 rounded-full shrink-0 transition-colors ${onlySelf ? "bg-primary" : "bg-surface-container-high"}`}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-surface-container-lowest shadow-sm transition-transform ${onlySelf ? "translate-x-5" : ""}`}
-          />
-        </button>
+      <div className="flex flex-col gap-space-lg">
+        <ToggleRow label="Solo Self" description="Se disattivato include anche le stazioni solo servito." checked={onlySelf} onChange={setOnlySelf} />
+        <ToggleRow
+          label="Evita autostrada"
+          description="Percorso e deviazioni senza autostrada. Il pedaggio non rientra nel calcolo."
+          checked={avoidMotorway}
+          onChange={setAvoidMotorway}
+        />
       </div>
 
       <div className="flex flex-col gap-space-sm">

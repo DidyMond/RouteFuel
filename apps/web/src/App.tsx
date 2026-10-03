@@ -1,16 +1,28 @@
 import type { StationResult } from "@routefuel/shared";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
 import { ResultsScreen } from "./components/results/ResultsScreen";
 import { SearchError } from "./components/SearchError";
 import { SearchForm } from "./components/SearchForm";
+import { SettingsScreen } from "./components/settings/SettingsScreen";
 import { StationDetailScreen } from "./components/station/StationDetailScreen";
 import { useSearch } from "./hooks/useSearch";
+import { SettingsProvider, useSettings } from "./hooks/useSettings";
+import type { RouteExclusions } from "./lib/routeOptions";
 
 export default function App() {
+  return (
+    <SettingsProvider>
+      <AppShell />
+    </SettingsProvider>
+  );
+}
+
+function AppShell() {
   const { state, search } = useSearch();
+  const { settings, rememberAutomaticReference } = useSettings();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -23,11 +35,37 @@ export default function App() {
     navigate("/results");
   }, [state, navigate]);
 
+  // L'ultimo prezzo di riferimento AUTOMATICO di ogni carburante serve a pre-compilare «Manuale» nelle Impostazioni.
+  const successId = state.status === "success" ? state.response.searchId : null;
+  useEffect(() => {
+    if (state.status !== "success" || state.response.referencePrice.level === "manual") return;
+    rememberAutomaticReference(state.request.fuelType, state.response.referencePrice.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per ricerca.
+  }, [successId]);
+
   // Mentre il server cerca si scarica già il codice della mappa (chunk separato): compare prima sui Risultati.
   const searching = state.status === "loading";
   useEffect(() => {
     if (searching) void import("./components/results/MapCanvas");
   }, [searching]);
+
+  // Rilanciando la ricerca dai Risultati («Opzioni percorso» → Applica) si resta sui risultati precedenti finché
+  // arrivano i nuovi: lo stato passa da «loading» ma la schermata non sparisce.
+  const lastSuccess = useRef<Extract<typeof state, { status: "success" }> | null>(null);
+  if (state.status === "success") lastSuccess.current = state;
+  const resultsState = state.status === "success" ? state : state.status === "loading" ? lastSuccess.current : null;
+
+  const routeDefaults = useMemo<RouteExclusions>(
+    () => ({ avoidMotorway: settings.avoidMotorway, avoidTolls: settings.avoidTolls, avoidFerries: settings.avoidFerries }),
+    [settings.avoidMotorway, settings.avoidTolls, settings.avoidFerries],
+  );
+  const applyRouteOptions = useCallback(
+    (exclusions: RouteExclusions) => {
+      if (state.status !== "success") return;
+      void search({ ...state.request, ...exclusions }, state.labels);
+    },
+    [state, search],
+  );
 
   const onHome = pathname === "/";
   const onStation = pathname.startsWith("/station/");
@@ -47,20 +85,27 @@ export default function App() {
 
       {/* Anche i Risultati restano montati (nascosti) sul dettaglio stazione: tornando indietro ordinamento, filtri,
           selezione e posizione della mappa sono quelli di prima. */}
-      {state.status === "success" && (pathname === "/results" || onStation) && (
+      {resultsState && (pathname === "/results" || onStation) && (
         <div className={onStation ? "hidden" : ""}>
-          <ResultsScreen state={state} onOpenStation={openStation} />
+          <ResultsScreen
+            state={resultsState}
+            onOpenStation={openStation}
+            routeDefaults={routeDefaults}
+            onApplyRouteOptions={applyRouteOptions}
+            searching={state.status === "loading"}
+          />
         </div>
       )}
 
       <Routes>
         <Route path="/" element={null} />
-        <Route path="/results" element={state.status === "success" ? null : <Navigate to="/" replace />} />
+        <Route path="/results" element={resultsState ? null : <Navigate to="/" replace />} />
         <Route path="/station/:searchId/:stationId" element={<StationDetailScreen />} />
+        <Route path="/settings" element={<SettingsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {!onStation && <BottomNav hasResults={state.status === "success"} />}
+      {!onStation && <BottomNav hasResults={resultsState !== null} />}
     </div>
   );
 }
