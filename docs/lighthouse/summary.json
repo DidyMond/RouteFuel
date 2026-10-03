@@ -1,0 +1,79 @@
+{
+  "generatedWith": {
+    "lighthouseFlow": "13.5.0 (mobile, simulated throttling)",
+    "lighthousePwa": "11.7.1 (categoria PWA, rimossa dalla 12)",
+    "browser": "Microsoft Edge (Chromium) headless",
+    "build": "produzione, vite preview + API locale"
+  },
+  "steps": [
+    {
+      "name": "1 Home",
+      "scores": {
+        "performance": 91,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "first-contentful-paint": "2.7 s",
+        "largest-contentful-paint": "2.8 s",
+        "total-blocking-time": "0 ms",
+        "cumulative-layout-shift": "0.005",
+        "speed-index": "2.7 s"
+      }
+    },
+    {
+      "name": "2 Risultati",
+      "scores": {
+        "performance": null,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {}
+    },
+    {
+      "name": "3 Dettaglio stazione",
+      "scores": {
+        "performance": null,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {}
+    },
+    {
+      "name": "4 Impostazioni",
+      "scores": {
+        "performance": 100,
+        "accessibility": 95,
+        "best-practices": 96,
+        "seo": 100
+      },
+      "metrics": {
+        "first-contentful-paint": "0.8 s",
+        "largest-contentful-paint": "0.8 s",
+        "total-blocking-time": "0 ms",
+        "cumulative-layout-shift": "0",
+        "speed-index": "0.8 s"
+      }
+    },
+    {
+      "name": "4b Impostazioni (sezioni aperte)",
+      "scores": {
+        "performance": null,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {}
+    }
+  ],
+  "pwa": {
+    "score": 100,
+    "performance": 89,
+    "accessibility": 95,
+    "bestPractices": 100,
+    "seo": 100
+  }
+}

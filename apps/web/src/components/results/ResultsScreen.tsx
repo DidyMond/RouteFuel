@@ -191,7 +191,7 @@ export function ResultsScreen({
   const exclusionsText = describeExclusions(exclusions);
 
   return (
-    <div className="fixed inset-x-0 top-[calc(72px+env(safe-area-inset-top,0px))] bottom-0 pb-28 flex flex-col md:block">
+    <main className="fixed inset-x-0 top-[calc(72px+env(safe-area-inset-top,0px))] bottom-0 pb-28 flex flex-col md:block">
       {/* Mappa: 40% dell'altezza su mobile (18% se il foglio è espanso), a tutta pagina su schermi larghi. */}
       <div
         data-testid="map-region"
@@ -360,6 +360,6 @@ export function ResultsScreen({
           onClose={closeNavigation}
         />
       )}
-    </div>
+    </main>
   );
 }

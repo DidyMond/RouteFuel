@@ -45,12 +45,17 @@ check(maskableSize?.width === 512 && maskableSize?.height === 512, "manifest: ic
 const appleTouch = await pngSize("apple-touch-icon.png");
 check(appleTouch?.width === 180, "apple-touch-icon.png 180x180");
 check(await exists("favicon.ico"), "favicon.ico esiste");
+const vercel = JSON.parse(await readFile(resolve(dist, "../vercel.json"), "utf8"));
+check(vercel.rewrites?.some((r) => r.source === "/(.*)" && r.destination === "/index.html"), "vercel.json: ogni percorso → index.html (serve a /results)");
+check(vercel.headers?.some((h) => h.source === "/sw.js" && /no-cache/.test(JSON.stringify(h.headers))), "vercel.json: sw.js mai in cache HTTP (si aggiorna a ogni deploy)");
+check((await exists("robots.txt")) && /^User-agent:/m.test(await text("robots.txt")), "robots.txt valido (altrimenti il server restituirebbe index.html)");
 
 // --- index.html
 const html = await text("index.html");
 check(/<link rel="manifest" href="\/manifest\.webmanifest"/.test(html), "index.html: link al manifest");
 check(/<meta name="theme-color" content="#059669"/.test(html), "index.html: theme-color");
 check(/<link rel="apple-touch-icon" href="\/apple-touch-icon\.png"/.test(html), "index.html: apple-touch-icon");
+check(/media="print"\s+onload="this\.media='all'"/.test(html), "index.html: Google Fonts non bloccante per il rendering");
 
 // --- service worker: shell in precache, dati mai in cache
 const sw = await text("sw.js");

@@ -86,6 +86,32 @@ describe("App — banner di installazione", () => {
   });
 });
 
+describe("App — landmark `main` su ogni schermata (accessibilità, audit Lighthouse)", () => {
+  it("Impostazioni ha un proprio <main>", () => {
+    renderApp("/settings");
+    expect(screen.getByRole("heading", { level: 1, name: "Impostazioni Veicolo & Risparmio" }).closest("main")).not.toBeNull();
+  });
+
+  it("Risultati ha un proprio <main> con elenco e filtri", () => {
+    const response = makeResponse();
+    searchState.current = {
+      status: "success",
+      response,
+      results: response.results,
+      refinement: response.refinement,
+      request: REQUEST,
+      labels: { origin: "Milano", destination: "Bologna" },
+    };
+    renderApp("/results");
+    expect(screen.getByRole("region", { name: "Stazioni lungo il percorso" }).closest("main")).not.toBeNull();
+  });
+
+  it("la Home ha il suo <main> con il form", () => {
+    renderApp("/");
+    expect(screen.getByRole("heading", { name: /Pianifica viaggio/ }).closest("main")).not.toBeNull();
+  });
+});
+
 describe("App — offline", () => {
   it("online non c'è nessun avviso offline", () => {
     renderApp("/");
